@@ -3,818 +3,1905 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>25FW 원가 대시보드 (Auto Mapping v4.2 · MU 벤더뷰/테마 개선)</title>
-<!-- CDN deps (Chart.js & plugins) -->
+<title>MLB 원가 대시보드</title>
+
+<link rel="preconnect" href="https://cdn.jsdelivr.net"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+
 <style>
-  :root { --bg:#f7fafc; --card:#ffffff; --ink:#0b1117; --muted:#4b5563; --border:#e5e7eb; --red:#ef4444; --accent:#2563eb; }
+  :root{ --bg:#f7fafc; --card:#fff; --ink:#0b1117; --muted:#4b5563; --border:#e5e7eb; --red:#ef4444; --accent:#2563eb; --good:#10b981; --headerH:64px; --sticky-gap:8px; }
+  *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic','Helvetica Neue',Arial,sans-serif}
   header{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.85);backdrop-filter:blur(6px);border-bottom:1px solid var(--border)}
-  *{box-sizing:border-box}
-  .container{max-width:1600px;margin:0 auto;padding:12px 20px}
-  .row{display:grid;grid-template-columns:1fr;gap:16px}
-  @media(min-width:1100px){.row{grid-template-columns:300px 1fr}}
+  .container{max-width:2000px;margin:0 auto;padding:6px 3px}
+  .row{display:grid;gap:16px;align-items:start;grid-template-columns:minmax(220px,16vw) 1fr}
+  /* [추가 v5.6] 가로 퍼짐(overflow) 방지: 그리드 아이템이 컨텐츠 너비로 늘어나지 않도록 */
+  .row > main{min-width:0}
+  .grid-2 > .card{min-width:0}
+  .chart-scroller{max-width:100%}
+  .chart-inner{max-width:100%}
+
   .card{background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
   .p-16{padding:16px}
-  .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-  @media(min-width:960px){.kpis{grid-template-columns:repeat(4,1fr)}}
-  .label{font-size:13px;color:var(--muted)} .value{font-size:24px;font-weight:700;margin-top:4px}
-  .badge{font-size:11px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;color:var(--muted);background:#f3f4f6}
-  .section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-  .muted{color:var(--muted)}
   .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-  select,input[type=text],input[type=file]{border:1px solid var(--border);border-radius:10px;padding:6px 8px;font-size:13px;background:#fff;color:var(--ink)}
+  .badge{font-size:11px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;color:var(--muted);background:#f3f4f6}
+  .label{font-size:13px;color:var(--muted)}
+  .value{font-size:24px;font-weight:700;margin-top:4px}
+  select,input[type=text],input[type=number],input[type=file]{border:1px solid var(--border);border-radius:10px;padding:6px 6px;font-size:13px;background:#fff;color:var(--ink)}
   input[type=range]{width:220px}
   .btn{background:var(--ink);color:#fff;border:0;border-radius:10px;padding:8px 12px;cursor:pointer}
+  .muted{color:var(--muted)}
+  html,body{overflow-x:hidden}
+  .chart-scroller{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
+  .chart-inner{display:inline-block;min-width:450px}
+  .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+
+  .mu-yoy{margin-top:6px;font-size:16px;font-weight:700;color:var(--ink);line-height:1.1}
+  @media(min-width:720px){.mu-yoy{font-size:18px}}
+  .summary-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr;gap:8px;font-size:13px;margin-top:6px}
+  .summary-grid .sum-h{font-size:12px;color:#6b7280;text-align:right;padding-bottom:6px;border-bottom:1px solid #eef2f7}
+  .summary-grid .sum-h:first-child{text-align:left}
+  .summary-grid > div:nth-child(n+5){padding-top:4px}
+  .diff-up{color:#0b1f3b;font-weight:700}
+  .diff-down{color:#dc2626;font-weight:700}
+  .diff-flat{color:#111827;font-weight:700}
+
+  @media(min-width:960px){.kpis{grid-template-columns:0.85fr 1.35fr 1fr 1fr}}
+  .grid-2{display:grid;grid-template-columns:1fr;gap:16px}
+  @media(min-width:960px){.grid-2{grid-template-columns:1fr 1fr}}
+  /* [추가 v5.6] 복종이 많아져 차트가 길어질 때: 2개 차트를 세로로 쌓아 한 화면 안에 유지 */
+  @media(min-width:960px){
+    body.stack-charts[data-view="main"] .grid-2{grid-template-columns:1fr}
+  }
+
   table{width:100%;border-collapse:collapse;font-size:13px}
-/* thead 고정 + 스크롤 가독성 */
-thead th{
-  background:#f9fafb;color:#111827;font-weight:600;text-align:left;
-  padding:8px;border-bottom:1px solid var(--border);
-  position:sticky;top:0;z-index:1;
-}
-/* 줄바꿈 방지(헤더/셀 폭 안정화) */
-tbody td{padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap}
-
-/* ▼ 드롭다운 UI 신규 추가 */
-.hdr{display:flex;align-items:center;gap:6px;position:relative}
-.th-filter{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
-.th-filter .caret{font-size:10px;color:var(--muted)}
-/* 크기 + 레이아웃 미세 조정 */
-.dropdown{
-  position:absolute; top:100%; left:0; background:#fff; border:1px solid var(--border);
-  border-radius:12px; width:260px; box-shadow:0 12px 24px rgba(0,0,0,.08);
-  z-index:20; display:none; padding:8px;
-}
-.dropdown.show{display:flex; flex-direction:column;}
-/* 검색 인풋은 상단에, 옵션 목록만 스크롤 */
-.dropdown .search{width:100%;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:12px;margin-bottom:6px}
-.dropdown .opts{overflow:auto; max-height:min(260px, 40vh);}  /* 목록 스크롤 영역 */
-.opt{display:flex;align-items:center;gap:8px;padding:4px 2px}
-.opt input{width:14px;height:14px}
-.opt label{font-size:12px;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
-.opt.select-all{border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:6px}
-/* 풋터는 항상 보이게 고정 */
-.dropdown .footer{position:sticky; bottom:0; background:#fff; padding-top:8px; display:flex; gap:8px; justify-content:flex-end}
-.dropdown .btn-mini{border:1px solid var(--border);border-radius:8px;background:#fff;padding:4px 10px;font-size:12px;cursor:pointer}
-/* ⬇⬇⬇ 추가: 숫자 필터 입력박스 스타일 */
-.dropdown .num-filter{display:flex; align-items:center; gap:6px; margin:4px 0 8px 0;}
-.dropdown .num-filter input{width:44%; border:1px solid var(--border); border-radius:8px; padding:4px 6px; font-size:12px;}
-.dropdown .num-filter .sep{flex:0 0 auto; color:#6b7280; font-size:12px}
-
-
+  thead th{background:#f9fafb;color:#111827;font-weight:600;text-align:left;padding:8px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1}
+  tbody td{padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap}
   tbody tr:nth-child(even){background:#fbfdff}
   .num{text-align:right;font-variant-numeric:tabular-nums}
-  .danger{color:var(--red)}
-  .hint{font-size:12px;color:var(--muted)}
-  .grid-2-half{display:grid;grid-template-columns:1fr;gap:16px}
-  @media(min-width:960px){.grid-2-half{grid-template-columns:1fr 1fr}}
-  .chip{border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:12px;color:#111827;background:#fff;cursor:pointer}
-  .chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
-  .hdr{display:flex;flex-direction:column;gap:6px}
-  .hdr select{background:#fff;color:#111827;border:1px solid var(--border);border-radius:8px;padding:2px 6px;font-size:12px}
+  .row-danger td{color:var(--red)}
+  .section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+
+  /* sticky */
+  .sticky-aside{position:sticky;top:calc(var(--headerH) + var(--sticky-gap));align-self:start;max-height:calc(100vh - var(--headerH) - 16px);overflow:auto;z-index:5;background:#fff}
+  .sticky-kpi{position:sticky;top:calc(var(--headerH) + var(--sticky-gap));z-index:4;background:#fff;border-radius:14px;padding-bottom:2px}
+
+  /* 페이지 네비 */
+  .page-nav{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+  .tab-btn{border:1px solid var(--border);background:#fff;border-radius:999px;padding:6px 10px;font-size:13px;cursor:pointer}
+  .tab-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  /* Compare 상단 선택 패널 */
+  .compare-grid{display:grid;grid-template-columns:1fr;gap:16px}
+  @media(min-width:1100px){.compare-grid{grid-template-columns:1fr 1fr}}
+  .cmp-card{border:1px solid var(--border);border-radius:12px;padding:12px;background:#fff}
+  
+  /* [수정됨] 상세 비교 헤더 텍스트 조정 */
+  .cmp-title{
+    font-weight:700;
+    margin-bottom:8px;
+    font-size: 14px; /* 글씨 크기 약간 축소 */
+    word-break: break-word; /* 필요시 줄바꿈 */
+    line-height: 1.4;
+  }
+
+  /* [수정됨] 스타일 비교 레이아웃 (Label/Value 간격 및 정렬) */
+  .cmp-row{display:flex; justify-content: space-between; gap:6px; border-bottom:1px dashed #eef2f7;padding:6px 8px;align-items:center;}
+  #cmpResult > div:not(:nth-child(2)) .cmp-row span:first-child { /* 선택1, 선택2 Label */
+    flex-basis: 100px;
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    text-align: left; /* 좌측 정렬 유지 */
+  }
+  #cmpResult > div:not(:nth-child(2)) .cmp-row span.num { /* 선택1, 선택2 Value */
+    font-weight: 600;
+    font-size: 13px;
+    text-align: right; /* 우측 정렬 유지 */
+  }
+  /* 선택 1 컬럼의 Value만 특별히 우측 정렬 강제 */
+  #cmpResult > div:first-child .cmp-row span.num {
+    text-align: right;
+  }
+   /* 선택 2 컬럼의 Value는 기본값(우측) 사용 */
+  #cmpResult > div:last-child .cmp-row span.num {
+      text-align: right;
+  }
+
+  .narrow .cmp-row{padding:6px 8px;}
+
+  .delta{font-size:12px;margin-left:8px}
+  /* [추가] 증감 컬럼 숫자 줄바꿈 방지(행 높이 고정 → 라인 정렬) */
+  
+  /* [추가] 스타일 상세 비교: 3컬럼 모든 라인(행) 높이 고정 → 증감/선택 라인 완전 정렬 */
+  #cmpResult .cmp-row{
+    box-sizing:border-box;
+    height:34px;
+    padding-top:0 !important;
+    padding-bottom:0 !important;
+    display:flex;
+    align-items:center;
+  }
+  /* [추가] 선택1/2: 라벨-값 간격이 너무 벌어지지 않도록 행 자체를 가운데로 좁혀 배치 */
+  #cmpResult > div:not(:nth-child(2)) .cmp-row{
+    max-width:340px;
+    margin-left:auto;
+    margin-right:auto;
+  }
+
+  #cmpResult > div:nth-child(2) .delta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:100%}
+  .small-title{font-size:12px;color:#6b7280;margin:-2px 0 6px}
+
+  /* [수정됨] 상세 비교 3열 레이아웃 (중간 컬럼 너비 조정) */
+  #cmpResult{display:grid;grid-template-columns:1fr;gap:10px;max-width:1150px;margin:0 auto}
+  @media(min-width:1100px){#cmpResult{grid-template-columns:minmax(420px,1fr) minmax(150px,180px) minmax(420px,1fr)}}
+
+  /* 하이라이트 색상 (파스텔) */
+  .key-tag{background:#fff7e6}
+  .key-cost{background:#e6f7ff}
+  .key-mu{background:#eafbea}
+
+  /* 시즌 비교 레이아웃 */
+  .season-grid{display:grid;gap:16px}
+  @media(min-width:1100px){.season-grid{grid-template-columns:minmax(280px,0.4fr) minmax(280px,0.4fr) 1fr}}
+
+  /* [추가] 시즌 비교 Min/Max 입력칸이 패널 너비를 넘지 않도록 */
+  #s1QtyMin,#s1QtyMax,#s1TagMin,#s1TagMax,#s2QtyMin,#s2QtyMax,#s2TagMin,#s2TagMax{min-width:0;width:0;max-width:100%;}
+
+  /* 시즌 비교 테이블 */
+  .sr-table{width:70%;border-collapse:collapse;font-size:13px}
+  .sr-table thead th{background:#f9fafb;color:#111827;font-weight:600;padding:6px;border-bottom:1px solid var(--border);text-align:center;white-space:normal;word-break:keep-all;font-size:12px}
+  .sr-table tbody td{padding:6px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center}
+  .sr-table tbody tr:nth-child(even){background:#fbfdff}
+  .sr-table .yoy{font-size:12px;margin-left:6px}
+  .sr-table .up{color:var(--good)}
+  .sr-table .down{color:var(--red)}
+  .sr-table .same{color:var(--muted)}
+  .sr-row-g1 td{background:#fff7e6}
+  .sr-row-mu td{background:#fff3b0}
+  .sr-row-QTY_STYLE td{background:#f0ffee}
+  .sr-row-QTY_TTL td{background:#f0ffee}
+  .sr-row-TAG td{background:#f0ffee}
+  .sr-row-TTL_FABRIC td{background:#e6f7ff}
+  .sr-row-TTL_ARTWORK td{background:#e6f7ff}
+  .sr-row-CM_USD td{background:#e6f7ff}
+  .sr-row-TTL_TRIM td{background:#e6f7ff}
+  .sr-row-COST_VAT td{background:#fff3b0}
+
+  /* ===== 필터 팝업 ===== */
+  .filter-popup {
+    position: absolute;
+    z-index: 20;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.1);
+    padding: 12px;
+    min-width: 240px;
+    width: 240px;
+    max-width: calc(100vw - 16px);
+    max-height: 300px;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .filter-popup-search {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+  .filter-popup-list {
+    overflow-y: auto;
+    flex-grow: 1;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 6px 0;
+    margin-bottom: 8px;
+  }
+  .filter-popup-list label {
+    display: block;
+    padding: 4px 8px;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .filter-popup-list label:hover { background: #f9fafb; }
+  .filter-popup-range { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+  .filter-popup-range input { width: 100%; }
+  .filter-popup-buttons { display: flex; gap: 8px; justify-content: flex-end; }
+  .filter-popup-buttons button { font-size: 12px; padding: 4px 8px; border-radius: 8px; }
+  .btn-link { background: none; color: var(--muted); border: 1px solid var(--border); }
+  .btn-primary { background: var(--accent); color: #fff; border: 0; }
+  th[data-col] { cursor: pointer; }
+  th[data-col]:hover { background: #f3f4f6; }
+
+  /* 증감 비교 색상 강조 */
+  .delta.up { color: var(--good); }
+  .delta.down { color: var(--red); }
+  .delta.same { color: var(--muted); }
+
+
+  /* ==== v5.3: view-based layout control (requested) ==== */
+  header{position:sticky;top:0;z-index:999;background:var(--bg)}
+  /* top nav is only needed when left filter is hidden */
+  .top-page-nav{display:none}
+  body[data-view="season"] .top-page-nav,
+  body[data-view="compare"] .top-page-nav{display:flex;gap:8px;justify-content:flex-start;flex-wrap:wrap}
+
+  /* hide left filter column on season/compare and re-center content */
+  body[data-view="season"] .row,
+  body[data-view="compare"] .row{grid-template-columns:1fr}
+  body[data-view="season"] .sticky-aside,
+  body[data-view="compare"] .sticky-aside{display:none}
+  body[data-view="season"] main,
+  body[data-view="compare"] main{max-width:1600px;margin:0 auto;width:100%}
+
+  /* main view: keep sidebar sticky as-is; scroll only below KPI area */
+  body[data-view="main"] #view-main{display:flex;flex-direction:column}
+  body[data-view="main"] #view-main .main-scroll-area{overflow:auto}
+  body[data-view="main"] #view-main{height:calc(100vh - var(--headerH, 0px) - 16px)}
+  body[data-view="main"] #view-main .main-scroll-area{
+    height:calc(100vh - var(--headerH, 0px) - var(--kpiH, 0px) - 24px);
+    padding-top:2px;
+  }
+  body[data-view="main"] #view-main .main-scroll-area > *:first-child{margin-top:0}
+
 </style>
 </head>
-<body>
+<body data-view="main">
 <header>
   <div class="container">
     <div style="display:flex;align-items:center;gap:10px">
       <div style="width:30px;height:30px;border-radius:8px;background:var(--accent)"></div>
-      <h1 style="font-size:18px;margin:0">25FW 원가 대시보드 (CSV 로컬용 · v4.2)</h1>
-      <span class="badge">MU 벤더뷰 / 색 테마 개선</span>
+      <h1 style="font-size:18px;margin:0">MLB 원가 대시보드</h1>
+      <span class="badge">121725 update</span>
     </div>
     <div class="controls" style="margin-top:8px">
-      <label class="hint">CSV:</label><input id="fileInput" type="file" accept=".csv" />
-      <span class="hint">목표 M/U</span>
+      <label class="muted">CSV:</label><input id="fileInput" type="file" accept=".csv" />
+      <span class="muted">목표 M/U</span>
       <input id="muSlider" type="range" min="4.0" max="8.0" step="0.1" value="5.5" />
       <input id="muInput" type="number" step="0.1" min="4.0" max="8.0" value="5.5" style="width:72px" />
-      <span class="chip" data-mu="5.5">5.5</span>
-      <span class="chip" data-mu="5.7">5.7</span>
-      <span class="chip" data-mu="6.0">6.0</span>
-      <span class="chip" data-mu="6.5">6.5</span>
+      <button class="tab-btn" data-mu="5.5">5.5</button>
+      <button class="tab-btn" data-mu="5.7">5.7</button>
+      <button class="tab-btn" data-mu="6.0">6.0</button>
+      <button class="tab-btn" data-mu="6.5">6.5</button>
     </div>
-  </div>
+  
+    <div class="page-nav top-page-nav" style="margin-top:10px">
+      <button class="tab-btn active" data-view="main">메인</button>
+      <button class="tab-btn" data-view="season">시즌별 비교</button>
+      <button class="tab-btn" data-view="compare">스타일 비교</button>
+    </div>
+</div>
 </header>
 
 <div class="container">
   <div class="row">
-    <aside class="card p-16">
+    <aside class="card p-16 sticky-aside">
       <div style="font-weight:600;margin-bottom:12px">필터</div>
-      <div class="muted">복종 (ITEM)</div><select id="fItem" style="width:100%"></select>
+      <div class="muted">SEASON</div><select id="fSeason" style="width:100%"></select>
+      <div class="muted" style="margin-top:10px">CATEGORY</div><select id="fCategory" style="width:100%"></select>
+      <div class="muted" style="margin-top:10px">복종 (ITEM)</div><select id="fItem" style="width:100%"></select>
       <div class="muted" style="margin-top:10px">벤더</div><select id="fVendor" style="width:100%"></select>
       <div class="muted" style="margin-top:10px">FIT</div><select id="fFit" style="width:100%"></select>
       <div class="muted" style="margin-top:10px">DOMAIN</div><select id="fDomain" style="width:100%"></select>
       <div class="muted" style="margin-top:10px">스타일 (번호/설명)</div><input id="fStyle" type="text" placeholder="STYLE_NO / DESCRIPTION" style="width:100%"/>
       <button class="btn" id="btnReset" style="width:100%;margin-top:12px">필터 초기화</button>
+
+      <div class="page-nav">
+        <button class="tab-btn active" data-view="main">메인</button>
+        <button class="tab-btn" data-view="season">시즌별 비교</button>
+        <button class="tab-btn" data-view="compare">스타일 비교</button>
+      </div>
     </aside>
 
     <main>
-      <div class="kpis">
-        <div class="card p-16"><div class="label">평균 M/U (물량 가중)</div><div class="value" id="kpiMuAvg">-</div><div class="hint">목표 <span id="muTargetLabel">5.5</span></div></div>
-        <div class="card p-16">
-          <div class="section-title"><div class="label">복종별 평균 공임($)</div><span class="badge" id="cmMode">by ITEM</span></div>
-          <canvas id="miniCM" height="160"></canvas>
+      <section id="view-main">
+        <div class="kpis sticky-kpi">
+          <div class="card p-16 mu-card"><div class="label">평균 M/U (물량 가중)</div><div class="value" id="kpiMuAvg">-</div><div id="kpiMuYoy" class="mu-yoy"></div><div class="badge">목표 <span id="muTargetLabel">5.5</span></div></div>
+          <div class="card p-16 summary-card">
+            <div class="section-title"><div class="label">요약 (필터 적용)</div></div>
+            
+<div class="summary-grid">
+  <div class="sum-h"></div>
+  <div class="sum-h" id="kpiSumHeadPrev"></div>
+  <div class="sum-h" id="kpiSumHeadCur"></div>
+  <div class="sum-h">차이</div>
+
+  <div class="muted">총 스타일 수</div>
+  <div class="num" id="kpiStylePrev">-</div>
+  <div class="num" id="kpiStyleCur">-</div>
+  <div class="num" id="kpiStyleDiff">-</div>
+
+  <div class="muted">총 물량</div>
+  <div class="num" id="kpiQtyPrev">-</div>
+  <div class="num" id="kpiQtyCur">-</div>
+  <div class="num" id="kpiQtyDiff">-</div>
+
+  <div class="muted">총 판가(TAG)</div>
+  <div class="num" id="kpiTagPrev">-</div>
+  <div class="num" id="kpiTagCur">-</div>
+  <div class="num" id="kpiTagDiff">-</div>
+
+  <div class="muted">총 원가(COST)</div>
+  <div class="num" id="kpiCostPrev">-</div>
+  <div class="num" id="kpiCostCur">-</div>
+  <div class="num" id="kpiCostDiff">-</div>
+</div>
+
+          </div>
+          <div class="card p-16"><div class="label">Red Flag 스타일</div><div class="value" id="kpiRed">-</div><div class="badge">M/U &lt; <span id="muTargetLabel2">5.5</span></div></div>
+          <div class="card p-16"><div class="label">벤더 수</div><div class="value" id="kpiVendors">-</div></div>
         </div>
-        <div class="card p-16"><div class="label">Red Flag 스타일</div><div class="value" id="kpiRed">-</div><div class="hint">M/U &lt; <span id="muTargetLabel2">5.5</span></div></div>
-        <div class="card p-16"><div class="label">벤더 수</div><div class="value" id="kpiVendors">-</div></div>
-      </div>
-
-      <div class="grid-2-half" style="margin-top:16px">
-        <div class="card p-16">
-          <div class="section-title"><div style="font-weight:600">복종별 평균 원가 구조 (비가중 · COST_VAT=100%)</div><span class="badge">DJ/DV: Insulation 포함(USD→₩)</span></div>
-          <canvas id="chartCost" height="160"></canvas>
+        <div class="grid-2" style="margin-top:16px">
+          <div class="card p-16">
+            <div class="section-title"><div style="font-weight:600">M/U 트래킹 (복종별, 가중)</div><span class="badge">Target 라인 + 값</span></div>
+            <div class="chart-scroller"><div id="muInner" class="chart-inner"><canvas id="chartMU" height="180"></canvas></div></div>
+          </div>
+          <div class="card p-16">
+            <div class="section-title"><div class="label">복종별 평균 공임($)</div><span class="badge" id="cmMode">by ITEM</span></div>
+            <div class="chart-scroller"><div id="cmInner" class="chart-inner"><canvas id="chartCM" height="180"></canvas></div></div>
+          </div>
         </div>
-        <div class="card p-16">
-          <div class="section-title"><div style="font-weight:600">M/U 트래킹 (복종별, 가중)</div><span class="badge">Target 라인 + 값</span></div>
-          <canvas id="chartMU" height="160"></canvas>
+        <div class="card p-16" id="costCard" style="margin-top:16px">
+          <div class="section-title"><div style="font-weight:600">복종별 평균 원가 구조</div><span class="badge">DJ/DV: Insulation 포함(USD→₩)</span></div>
+          <div class="chart-scroller"><div id="costInner" class="chart-inner"><canvas id="chartCost" height="150"></canvas></div></div>
         </div>
-      </div>
-
-      <div class="card p-16" style="margin-top:16px">
-        <div class="section-title"><div style="font-weight:600">스타일 상세</div><span class="badge">Header dropdown filters</span></div>
-        <div style="overflow:auto; max-height: 320px; border-top:1px solid #1f2937; margin-top:8px;">
-<table id="tblDetail">
-  <thead>
-    <tr>
-      <th data-col="STYLE_NO">
-        <div class="hdr"><span class="th-filter">STYLE_NO <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-      <th data-col="ITEM">
-        <div class="hdr"><span class="th-filter">ITEM <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-      <th data-col="VENDOR_1ST">
-        <div class="hdr"><span class="th-filter">VENDOR_1ST <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-      <!-- 신규 열: TTL_QTY -->
-      <th data-col="QTY_TTL" class="num">
-        <div class="hdr"><span class="th-filter">TTL_QTY <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-      <th data-col="TAG" class="num">
-        <div class="hdr"><span class="th-filter">TAG <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-      <th data-col="COST_VAT" class="num">
-        <div class="hdr"><span class="th-filter">COST_VAT <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-      <th data-col="MU" class="num">
-        <div class="hdr"><span class="th-filter">MU <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-      <th data-col="MU_TARGET_GAP" class="num">
-        <div class="hdr"><span class="th-filter">MU_TARGET_GAP <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
-
+        <div class="card p-16" style="margin-top:16px">
+          <div class="section-title"><div style="font-weight:600">복종 HISTORY</div><span class="badge">Header dropdown filters</span></div>
+          <div style="overflow:auto; max-height: 320px; border-top:1px solid #1f2937; margin-top:8px;">
+            <table id="tblHistory"><thead><tr></tr></thead><tbody></tbody></table>
+          </div>
         </div>
-      </div>
-
-      <div class="card p-16" style="margin-top:16px;">
-        <div class="section-title"><div style="font-weight:600">Red Flag 스타일 (목표 M/U 미만)</div><span class="badge">납기일 제거 / 필요원가·감액표시</span></div>
-        <div style="overflow:auto; max-height: 360px; border-top:1px solid #1f2937; margin-top:8px;">
-<table id="tblRed">
-  <thead>
-    <tr>
-      <th data-col="STYLE_NO">
-        <div class="hdr"><span class="th-filter">STYLE_NO <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-      <th data-col="ITEM">
-        <div class="hdr"><span class="th-filter">ITEM <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-      <th data-col="VENDOR_1ST">
-        <div class="hdr"><span class="th-filter">VENDOR_1ST <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-      <th data-col="MU" class="num">
-        <div class="hdr"><span class="th-filter">MU <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-      <th data-col="TAG" class="num">
-        <div class="hdr"><span class="th-filter">TAG <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-      <th data-col="COST_VAT" class="num">
-        <div class="hdr"><span class="th-filter">COST_VAT <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-      <th data-col="REDUCE_NEED" class="num">
-        <div class="hdr"><span class="th-filter">감액 필요(₩) <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-
-      <th data-col="SHELL_PRICE_USD" class="num">
-        <div class="hdr"><span class="th-filter">SHELL_PRICE($) <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-      <th data-col="CM_USD" class="num">
-        <div class="hdr"><span class="th-filter">CM($) <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-      <th data-col="SHELL">
-        <div class="hdr"><span class="th-filter">SHELL <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-      <th data-col="SHELL_SUPPLIER">
-        <div class="hdr"><span class="th-filter">SHELL_SUPPLIER <span class="caret">▼</span></span><div class="dropdown"></div></div>
-      </th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
-
+        <div class="card p-16" style="margin-top:16px;">
+          <div class="section-title"><div style="font-weight:600">스타일 상세</div><span class="badge">필터 적용 / 미달 행 강조</span></div>
+          <div style="overflow:auto; max-height: 360px; border-top:1px solid #1f2937; margin-top:8px;">
+            <table id="tblDetail"><thead><tr></tr></thead><tbody></tbody></table>
+          </div>
         </div>
-      </div>
+      </section>
 
+      <section id="view-season" style="display:none">
+        <div class="card p-16 sticky-kpi">
+          <div class="section-title"><div style="font-weight:600">시즌별 비교</div><span class="badge">필터 반영(가중 평균)</span></div>
+          <div class="muted" style="font-size:12px">필터를 바꾸면 오른쪽 결과와 그래프가 바로 갱신됩니다.</div>
+        </div>
+
+        <div class="season-grid" style="margin-top:16px">
+          <div class="card p-16">
+            <div style="font-weight:700;margin-bottom:6px">시즌 1</div>
+            <div class="muted">SEASON</div><select id="s1Season" style="width:100%"></select>
+            <div class="muted" style="margin-top:6px">CATEGORY</div><select id="s1Cat" style="width:100%"></select>
+            <div class="muted" style="margin-top:6px">ITEM</div><select id="s1Item" style="width:100%"></select>
+            <div class="muted" style="margin-top:6px">DOMAIN</div><select id="s1Domain" style="width:100%"></select>
+            <div class="muted" style="margin-top:6px">FIT</div><select id="s1Fit" style="width:100%"></select>
+            <div class="muted" style="margin-top:6px">VENDOR</div><select id="s1Vendor" style="width:100%"></select>
+            <div class="muted" style="margin-top:6px">QTY TTL</div>
+            <select id="s1QtySel" multiple size="6" style="width:100%"></select>
+            <div style="display:flex;gap:4px;margin-top:4px"><input id="s1QtyMin" type="number" placeholder="Min" style="flex:1"><input id="s1QtyMax" type="number" placeholder="Max" style="flex:1"></div>
+            <div class="muted" style="margin-top:6px">TAG</div>
+            <select id="s1TagSel" multiple size="6" style="width:100%"></select>
+            <div style="display:flex;gap:4px;margin-top:4px"><input id="s1TagMin" type="number" placeholder="Min" style="flex:1"><input id="s1TagMax" type="number" placeholder="Max" style="flex:1"></div>
+          </div>
+
+          <div class="card p-16">
+            <div style="font-weight:700;margin-bottom:6px">시즌 2</div>
+            <div class="muted">SEASON</div><select id="s2Season" style="width:100%"></select>
+            <div class="muted" style="margin-top:6px">CATEGORY</div><select id="s2Cat" style="width:100%"></select>
+            <div class="muted" style="margin-top:6px">ITEM</div><select id="s2Item" style="width:100%"></select>
+            <div class="muted" style="margin-top:6px">DOMAIN</div><select id="s2Domain" style="width:100%"></select>
+            <div class="muted" style="margin-top:6px">FIT</div><select id="s2Fit" style="width:100%"></select>
+            <div class="muted" style="margin-top:6px">VENDOR</div><select id="s2Vendor" style="width:100%"></select>
+            <div class="muted" style="margin-top:6px">QTY TTL</div>
+            <select id="s2QtySel" multiple size="6" style="width:100%"></select>
+            <div style="display:flex;gap:4px;margin-top:4px"><input id="s2QtyMin" type="number" placeholder="Min" style="flex:1"><input id="s2QtyMax" type="number" placeholder="Max" style="flex:1"></div>
+            <div class="muted" style="margin-top:6px">TAG</div>
+            <select id="s2TagSel" multiple size="6" style="width:100%"></select>
+            <div style="display:flex;gap:4px;margin-top:4px"><input id="s2TagMin" type="number" placeholder="Min" style="flex:1"><input id="s2TagMax" type="number" placeholder="Max" style="flex:1"></div>
+          </div>
+
+          <div class="card p-16 season-result">
+            <div class="section-title"><div style="font-weight:600">시즌 비교 결과</div><span class="badge">YOY</span></div>
+            <table class="sr-table">
+              <thead><tr><th>항목</th><th id="srHead1">-</th><th id="srHead2">-</th><th>YOY</th></tr></thead>
+              <tbody id="srBody"></tbody>
+            </table>
+            <div class="muted" style="font-size:11px;margin-top:4px">모든 수치는 물량 가중 평균, MU는 ΣTAG/ΣCOST.</div>
+            <div class="grid-2" style="margin-top:16px">
+              <div class="card p-16">
+                <div class="section-title"><div style="font-weight:600">시즌별 M/U (물량 가중)</div><span class="badge" id="seasonMuInfo">—</span></div>
+                <div class="chart-scroller"><div class="chart-inner"><canvas id="chartSeasonMU2" height="180"></canvas></div></div>
+              </div>
+              <div class="card p-16">
+                <div class="section-title"><div style="font-weight:600">시즌별 평균 공임($) (물량 가중)</div><span class="badge" id="seasonCmInfo">—</span></div>
+                <div class="chart-scroller"><div class="chart-inner"><canvas id="chartSeasonCM2" height="180"></canvas></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-compare" style="display:none">
+        <div class="card p-16 sticky-kpi">
+          <div class="section-title"><div style="font-weight:600">스타일 비교 (Compare Tray)</div><span class="badge">선택 1 · 증감 · 선택 2</span></div>
+          <div class="compare-grid">
+            <div class="cmp-card narrow">
+              <div class="cmp-title">선택 1</div>
+              <div class="small-title muted">필터</div>
+              <div class="muted">SEASON</div><select id="c1Season" style="width:100%"></select>
+              <div class="muted" style="margin-top:6px">CATEGORY</div><select id="c1Cat" style="width:100%"></select>
+              <div class="muted" style="margin-top:6px">ITEM</div><select id="c1Item" style="width:100%"></select>
+              <div class="muted" style="margin-top:6px">VENDOR</div><select id="c1Vendor" style="width:100%"></select>
+              <div class="muted" style="margin-top:6px">STYLE</div>
+              <input id="c1Search" type="text" placeholder="검색" style="width:100%;margin-top:4px"/>
+              <select id="c1Style" size="8" style="width:100%;margin-top:6px"></select>
+            </div>
+            <div class="cmp-card narrow">
+              <div class="cmp-title">선택 2</div>
+              <div class="small-title muted">필터</div>
+              <div class="muted">SEASON</div><select id="c2Season" style="width:100%"></select>
+              <div class="muted" style="margin-top:6px">CATEGORY</div><select id="c2Cat" style="width:100%"></select>
+              <div class="muted" style="margin-top:6px">ITEM</div><select id="c2Item" style="width:100%"></select>
+              <div class="muted" style="margin-top:6px">VENDOR</div><select id="c2Vendor" style="width:100%"></select>
+              <div class="muted" style="margin-top:6px">STYLE</div>
+              <input id="c2Search" type="text" placeholder="검색" style="width:100%;margin-top:4px"/>
+              <select id="c2Style" size="8" style="width:100%;margin-top:6px"></select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-16" style="margin-top:16px">
+          <div class="section-title"><div style="font-weight:600">상세 비교</div><span class="badge">3열: 선택1 · 증감 · 선택2</span></div>
+          <div id="cmpResult"></div>
+        </div>
+      </section>
     </main>
   </div>
 </div>
 
 <script>
-(() => {
-  let MU_TARGET = 5.5;
-  const EXRATE = 1420;
+(function(){
+  try{
+    if(window['chartjs-plugin-annotation']) Chart.register(window['chartjs-plugin-annotation']);
+    if(window['ChartDataLabels']) Chart.register(window['ChartDataLabels']);
+  }catch(e){}
+  'use strict';
 
-  const CANON = {
-    STYLE_NO:'STYLE_NO', STYLE_DESCRIPTION:'STYLE_DESCRIPTION', ITEM:'ITEM', VENDOR:'VENDOR_1ST',
-    FIT:'FIT', DOMAIN:'DOMAIN', TAG:'TAG', COST:'COST_VAT', MU:'MU', MU_W:'MU_WEIGHTED',
-    TTL_FABRIC:'TTL_FABRIC', TTL_SHELL:'TTL_SHELL', TTL_LINING:'TTL_LINING', POCKET:'POCKETING_ETC',
-    TTL_ARTWORK:'TTL_ARTWORK', TTL_TRIM:'TTL_TRIM', CM:'CM_USD',
-    SHELL:'SHELL', SHELL_SUPPLIER:'SHELL_SUPPLIER', SHELL_PRICE:'SHELL_PRICE_USD', SHELL_CONS:'SHELL_CONS',
-    INS:'INSULATION', INS_PRICE:'INSULATION_PRICE_USD', INS_CONS:'INSULATION_CONS', TTL_INS:'TTL_INSULATION_USD',
-    QTY:'QTY_TTL', TTL_COST:'TTL_COST', TTL_TAG:'TTL_TAG'
-  };
+  function setStickyOffsets(){
+    var h=document.querySelector('header');
+    if(h){document.documentElement.style.setProperty('--headerH', h.offsetHeight+'px');}
+  }
+  window.addEventListener('load', setStickyOffsets);
+  window.addEventListener('resize', setStickyOffsets);
+  window.addEventListener('resize', adjustMainChartLayout);
 
-  const el = (id)=>document.getElementById(id);
-  const fileInput=el('fileInput'); const muSlider=el('muSlider'); const muInput=el('muInput');
-  const muLabel1=el('muTargetLabel'), muLabel2=el('muTargetLabel2');
-  const chips = Array.from(document.querySelectorAll('.chip'));
-  const fItem=el('fItem'), fVendor=el('fVendor'), fFit=el('fFit'), fDomain=el('fDomain'), fStyle=el('fStyle'), btnReset=el('btnReset');
-  const kpiMuAvg=el('kpiMuAvg'), kpiRed=el('kpiRed'), kpiVendors=el('kpiVendors'), cmMode=el('cmMode');
-const tblDetailBody=el('tblDetail').querySelector('tbody'),tblRedBody=el('tblRed').querySelector('tbody');
+  /* ===== 상태 ===== */
+  var MU_TARGET=5.5, EXRATE=1420, currentView='main';
+  var raw=[], filtered=[]; var map={};
+  var $=function(id){return document.getElementById(id)};
+  var fileInput=$('fileInput'), muSlider=$('muSlider'), muInput=$('muInput');
+  var fSeason=$('fSeason'), fCategory=$('fCategory'), fItem=$('fItem'), fVendor=$('fVendor'), fFit=$('fFit'), fDomain=$('fDomain'), fStyle=$('fStyle');
+  var chartMU=null,chartCM=null,chartCost=null;
+  var currentFilterPopup = null;
 
-  let raw=[], filtered=[], map={};
-  let miniCM, chartCost, chartMU;
+  var s1Season,s1Cat,s1Domain,s1Fit,s1Item,s1Vendor,s1QtySel,s1QtyMin,s1QtyMax,s1TagSel,s1TagMin,s1TagMax;
+  var s2Season,s2Cat,s2Domain,s2Fit,s2Item,s2Vendor,s2QtySel,s2QtyMin,s2QtyMax,s2TagSel,s2TagMin,s2TagMax;
+  var srHead1,srHead2,srBody;
+  var chartSeasonMU2=null, chartSeasonCM2=null;
 
-  const toNum = (x)=>{ if(x===null||x===undefined||x==='') return NaN; const n=Number(String(x).replace(/,/g,'')); return isNaN(n)?NaN:n; };
-  const sum = (a)=>a.reduce((acc,v)=>acc+(toNum(v)||0),0);
-  const avg = (a)=>{ const v=a.map(toNum).filter(x=>!isNaN(x)); return v.length? v.reduce((p,c)=>p+c,0)/v.length : NaN; };
-  const fmtKRW = (v)=> isNaN(toNum(v))?'-':'₩'+Math.round(toNum(v)).toLocaleString('ko-KR');
-  const fmtUSD = (v)=> isNaN(toNum(v))?'-':'$'+toNum(v).toFixed(2);
-  function norm(s){ return String(s||'').trim().toLowerCase().replace(/\s+/g,' ').replace(/_/g,' ').replace(/\(.*?\)/g,'').replace(/[^a-z0-9가-힣 ]/g,''); }
+  /* ===== 유틸 ===== */
+  function toNum(x){ if(x===null||x===undefined||x==='') return NaN; var n=Number(String(x).replace(/,/g,'').replace(/[₩$]/g,'')); return isNaN(n)?NaN:n }
+  function sum(a){return a.reduce(function(acc,v){return acc+(toNum(v)||0)},0)}
+  function fmtKRW(v){var n=toNum(v);return isNaN(n)?'-':'₩'+Math.round(n).toLocaleString('ko-KR')}
+  function fmtUSD(v){var n=toNum(v);if(isNaN(n))return '-';var hasDec=Math.abs(n%1)>1e-9;return '$'+n.toLocaleString('ko-KR',hasDec?{maximumFractionDigits:2}:{})}
+  function fmtEok(krw){var v=toNum(krw);if(isNaN(v))return '-';var e=v/1e8;var s=e>=100?Math.round(e).toLocaleString('ko-KR'):e.toLocaleString('ko-KR',{maximumFractionDigits:1});return s+'억'}
+  function groupBy(rows,key){return rows.reduce(function(acc,r){var k=key(r)||'-';(acc[k]||(acc[k]=[])).push(r);return acc},{})}
+  function norm(s){return String(s||'').trim().toLowerCase().replace(/\s+/g,' ').replace(/_/g,' ').replace(/\(.*?\)/g,'').replace(/[^a-z0-9가-힣 ]/g,'')}
+  function fmtSmartNum(v){var n=toNum(v);if(isNaN(n)) return v||'-';var hasDec=Math.abs(n%1)>1e-9;return n.toLocaleString('ko-KR',hasDec?{maximumFractionDigits:2}:{})}
+  function uniqVals(arr){ var s=new Set(); arr.forEach(function(v){ if(v!==null && v!==undefined && v!=='') s.add(v); }); return Array.from(s); }
+
+  /* ===== CANON ===== */
+  var CANON={STYLE_NO:'STYLE_NO',STYLE_DESCRIPTION:'STYLE_DESCRIPTION',ITEM:'ITEM',VENDOR:'VENDOR',SEASON:'SEASON',CATEGORY:'CATEGORY',FIT:'FIT',DOMAIN:'DOMAIN',TAG:'TAG',COST:'COST_VAT',MU:'MU',QTY:'QTY_TTL',TTL_COST:'TTL_COST',TTL_TAG:'TTL_TAG',TTL_CN:'TTL_CN',SHELL:'SHELL',SHELL_SUPPLIER:'SHELL_SUPPLIER',SHELL_PRICE:'SHELL_PRICE_USD',SHELL_CONS:'SHELL_CONS',TTL_FABRIC:'TTL_FABRIC',TTL_ARTWORK:'TTL_ARTWORK',TTL_TRIM:'TTL_TRIM',CM:'CM_USD',INS:'INSULATION',INS_PRICE:'INSULATION_PRICE_USD',INS_CONS:'INSULATION_CONS',TTL_INS:'TTL_INSULATION_USD'};
+  CANON.TTL_SHELL = 'TTL_SHELL';
+
+  function isEokHeaderName(h){if(!h)return false;var n=norm(h);return /(ttl\s*(tag|cost)(\s*num)?)/.test(n)||/총원가|총판가/.test(n)}
   function buildMap(headers){
-    const lc=headers.map(h=>norm(h)); const byLc=Object.fromEntries(lc.map((k,i)=>[k, headers[i]]));
-    Object.values(CANON).forEach(cn=>{ const k=norm(cn); if(byLc[k]) map[cn]=byLc[k]; });
-    headers.forEach(h=>{ const n=norm(h); if(n.includes('ttl cost')) map[CANON.TTL_COST]=h; if(n.includes('ttl tag')) map[CANON.TTL_TAG]=h; });
-    headers.forEach(h=>{ const n=norm(h); if(n.includes('insulation price usd')) map[CANON.INS_PRICE]=h; if(n.includes('insulation cons')) map[CANON.INS_CONS]=h; if(n.includes('ttl insulation usd')) map[CANON.TTL_INS]=h; });
+    var lc=headers.map(function(h){return norm(h)});var byLc={};lc.forEach(function(k,i){byLc[k]=headers[i]});
+    Object.values(CANON).forEach(function(cn){var k=norm(cn);if(byLc[k])map[cn]=byLc[k]});
+    if(!map[CANON.VENDOR]){
+      var up=headers.map(function(h){return h.trim().toUpperCase()});
+      var i=up.findIndex(function(h){return['VENDOR','VENDOR_1ST','VENDOR MAIN','VENDOR1ST'].indexOf(h)>-1});
+      if(i>=0)map[CANON.VENDOR]=headers[i]
+    }
+    headers.forEach(function(h){var n=norm(h);if(n.indexOf('ttl cost')>-1)map[CANON.TTL_COST]=h;if(n.indexOf('ttl tag')>-1)map[CANON.TTL_TAG]=h});
   }
-  const get=(r,canon)=> r[ map[canon] || canon ];
-  const ttlCost=r=>{ const hdr=(map[CANON.TTL_COST]||CANON.TTL_COST).toLowerCase(); const n=toNum(get(r,CANON.TTL_COST)); if(isNaN(n))return NaN; return hdr.includes('억')? n*1e8 : n; };
-  const ttlTag=r=>{ const hdr=(map[CANON.TTL_TAG]||CANON.TTL_TAG).toLowerCase(); const n=toNum(get(r,CANON.TTL_TAG)); if(isNaN(n))return NaN; return hdr.includes('억')? n*1e8 : n; };
-  const insUSD=r=>{ const t=toNum(get(r,CANON.TTL_INS)); if(!isNaN(t)) return t; const p=toNum(get(r,CANON.INS_PRICE)), c=toNum(get(r,CANON.INS_CONS)); const v=p*c; return isNaN(v)?NaN:v; };
-  const groupBy=(rows,key)=>rows.reduce((acc,r)=>{ const k=key(r)??'-'; (acc[k] ||= []).push(r); return acc; },{});
+  function get(r,canon){return r[map[canon]||canon]}
+  function ttlCost(r){var hdr=(map[CANON.TTL_COST]||CANON.TTL_COST||'');var t=toNum(get(r,CANON.TTL_COST));if(!isNaN(t)&&t!==0)return isEokHeaderName(hdr)?t*1e8:t;var cost=toNum(get(r,CANON.COST));var qty=toNum(get(r,CANON.QTY));return(isNaN(cost)||isNaN(qty))?NaN:cost*qty}
+  function ttlTag(r){var hdr=(map[CANON.TTL_TAG]||CANON.TTL_TAG||'');var t=toNum(get(r,CANON.TTL_TAG));if(!isNaN(t)&&t!==0)return isEokHeaderName(hdr)?t*1e8:t;var tag=toNum(get(r,CANON.TAG));var qty=toNum(get(r,CANON.QTY));return(isNaN(tag)||isNaN(qty))?NaN:tag*qty}
+  function shortVendor(name){var m={'ITOCHU TEXTILE(CHINA)CO.,LTD.':'ITOCHU','(주)포마트코퍼레이션':'포마트','(주)기도산업':'기도','티피나디아㈜':'나디아','원전교역':'원전','주)무브 플러스':'무브','㈜노브랜드(우븐)':'노브랜드','주식회사 거림씨앤에프':'거림','(주)신한어패럴':'신한','Blue Forest Garment Co., LTD (CHINA)':'Blue Forest','Hongying garment CO., LTD':'Hongying','주식회사 에이엠지엠브이':'AMGV','HONGKONG KING TIDE FASHION CO.,LIMITED':'KINGTIDE'};if(!name)return'-';if(m[name])return m[name];return String(name).replace(/\(.*?\)/g,'').replace(/\s+/g,' ').trim().slice(0,10)}
 
-  /* 축약 벤더명 유틸 */
-  function shortVendor(name){
-    const m = {
-      'ITOCHU TEXTILE(CHINA)CO.,LTD.': 'ITOCHU',
-      '(주)포마트코퍼레이션': '포마트',
-      '(주)기도산업': '기도',
-      '티피나디아㈜': '나디아',
-      '원전교역': '원전',
-      '주)무브 플러스': '무브',
-      '㈜노브랜드(우븐)': '노브랜드',
-      '주식회사 거림씨앤에프': '거림',
-      '(주)신한어패럴': '신한'
-    };
-    if (!name) return '-';
-    if (m[name]) return m[name];
-    return String(name).replace(/\(.*?\)/g,'').replace(/\s+/g,' ').trim().slice(0,10);
-  }
+  /* ===== 테이블 간단 필터 ===== */
+  var histFilterState={}, detailFilterState={};
+  function valueFor(col,r){var v=col.acc(r);return col.type==='number'?toNum(v):(v==null?'':String(v))}
+  
+  function applyGenericFilters(rows,cols,state){
+    var keys=Object.keys(state);
+    if(!keys.length)return rows;
+    return rows.filter(function(r){
+      for(var i=0;i<keys.length;i++){
+        var k=keys[i];
+        var col=cols.find(function(c){return c.key===k});
+        if(!col)continue;
+        
+        var s=state[k];
+        var v=valueFor(col,r);
 
-  function populateFilters(rows){
-    const uniq = (arr)=>['All', ...Array.from(new Set(arr.filter(Boolean)))];
-    fItem.innerHTML=uniq(rows.map(r=>get(r,CANON.ITEM))).map(v=>`<option>${v}</option>`).join('');
-    fVendor.innerHTML=uniq(rows.map(r=>get(r,CANON.VENDOR))).map(v=>`<option>${v}</option>`).join('');
-    fFit.innerHTML=uniq(rows.map(r=>get(r,CANON.FIT))).map(v=>`<option>${v}</option>`).join('');
-    fDomain.innerHTML=uniq(rows.map(r=>get(r,CANON.DOMAIN))).map(v=>`<option>${v}</option>`).join('');
-    fItem.value='All'; fVendor.value='All'; fFit.value='All'; fDomain.value='All'; fStyle.value='';
-  }
-  function applyFilters(){
-    filtered = raw.filter(r=>{
-      if (fItem.value!=='All' && get(r,CANON.ITEM)!==fItem.value) return false;
-      if (fVendor.value!=='All' && get(r,CANON.VENDOR)!==fVendor.value) return false;
-      if (fFit.value!=='All' && get(r,CANON.FIT)!==fFit.value) return false;
-      if (fDomain.value!=='All' && get(r,CANON.DOMAIN)!==fDomain.value) return false;
-      if (fStyle.value){ const q=fStyle.value.toLowerCase(); const a=String(get(r,CANON.STYLE_NO)||'').toLowerCase(); const b=String(get(r,CANON.STYLE_DESCRIPTION)||'').toLowerCase(); if(!a.includes(q)&&!b.includes(q)) return false; }
+        if(s.selected){
+          var lab=String(v||'(Blank)');
+          if(!s.selected.has(lab)) return false;
+        }
+        
+        if(s.min != null || s.max != null) {
+          var num=toNum(v);
+          if(isNaN(num)) return false;
+          if(s.min!=null&&num<s.min) return false;
+          if(s.max!=null&&num>s.max) return false;
+        }
+      }
       return true;
     });
   }
 
-  /* -------- 복종별 평균 공임($) -------- */
-  function renderMiniCM(){
-    if (miniCM) miniCM.destroy();
-    const itemSel=fItem.value!=='All', vendorSel=fVendor.value!=='All', fitSel=fFit.value!=='All';
-    let labels=[], data1=[], data2=null, mode='by ITEM';
+  /* ===== 좌측 글로벌 필터 ===== */
+  function populateFilters(rows){
+    function uniq(arr){return ['All'].concat(Array.from(new Set(arr.filter(Boolean))))}
+    fSeason.innerHTML=uniq(rows.map(function(r){return get(r,CANON.SEASON)})).map(function(v){return '<option>'+v+'</option>'}).join('');
+    fCategory.innerHTML=uniq(rows.map(function(r){return get(r,CANON.CATEGORY)})).map(function(v){return '<option>'+v+'</option>'}).join('');
+    fItem.innerHTML=uniq(rows.map(function(r){return get(r,CANON.ITEM)})).map(function(v){return '<option>'+v+'</option>'}).join('');
+    fVendor.innerHTML=uniq(rows.map(function(r){return get(r,CANON.VENDOR)})).map(function(v){return '<option>'+v+'</option>'}).join('');
+    fFit.innerHTML=uniq(rows.map(function(r){return get(r,CANON.FIT)})).map(function(v){return '<option>'+v+'</option>'}).join('');
+    fDomain.innerHTML=uniq(rows.map(function(r){return get(r,CANON.DOMAIN)})).map(function(v){return '<option>'+v+'</option>'}).join('');
+    fSeason.value=fCategory.value=fItem.value=fVendor.value=fFit.value=fDomain.value='All';
+  }
 
-    if(itemSel && !vendorSel && !fitSel){
-      mode = `Vendors in ${fItem.value}`;
-      const rows=filtered.filter(r=>get(r,CANON.ITEM)===fItem.value);
-      const g=groupBy(rows, r=>get(r,CANON.VENDOR)||'-');
-      const keys=Object.keys(g);
-      labels = keys.map(shortVendor);                /* ← 축약 라벨 */
-      data1  = keys.map(k=>avg(g[k].map(r=>toNum(get(r,CANON.CM)))));
-    } else if (vendorSel && !itemSel){
-      mode = `Vendor vs All (${fVendor.value})`;
-      const gAll=groupBy(filtered, r=>get(r,CANON.ITEM)); labels=Object.keys(gAll);
-      const vendorRows=raw.filter(r=>get(r,CANON.VENDOR)===fVendor.value); const gVendor=groupBy(vendorRows, r=>get(r,CANON.ITEM));
-      const all=labels.map(k=>avg((gAll[k]||[]).map(r=>toNum(get(r,CANON.CM)))));
-      const sel=labels.map(k=>avg((gVendor[k]||[]).map(r=>toNum(get(r,CANON.CM)))));
-      data1=all; data2=sel;
-    } else if (fitSel && !itemSel){
-      mode = `FIT vs All (${fFit.value})`;
-      const gAll=groupBy(filtered, r=>get(r,CANON.ITEM)); labels=Object.keys(gAll);
-      const fitRows=raw.filter(r=>get(r,CANON.FIT)===fFit.value); const gFit=groupBy(fitRows, r=>get(r,CANON.ITEM));
-      const all=labels.map(k=>avg((gAll[k]||[]).map(r=>toNum(get(r,CANON.CM)))));
-      const sel=labels.map(k=>avg((gFit[k]||[]).map(r=>toNum(get(r,CANON.CM)))));
-      data1=all; data2=sel;
-    } else {
-      const g=groupBy(filtered, r=>get(r,CANON.ITEM)||'-'); labels=Object.keys(g);
-      data1=labels.map(k=>avg(g[k].map(r=>toNum(get(r,CANON.CM)))));
+  function refreshFilterOptions(){
+    var cur = {
+      season: fSeason.value, category: fCategory.value, item: fItem.value,
+      vendor: fVendor.value, fit: fFit.value, domain: fDomain.value
+    };
+    function setOpts(sel, values){
+      var prev = sel.value;
+      sel.innerHTML = ['All'].concat(values).map(function(v){ return '<option>'+v+'</option>'; }).join('');
+      sel.value = (values.indexOf(prev) > -1 || prev === 'All') ? prev : 'All';
     }
-    cmMode.textContent=mode;
-
-    const ctx=document.getElementById('miniCM').getContext('2d');
-    miniCM=new Chart(ctx,{
-      type:'bar',
-      data:{
-        labels,
-        datasets:[
-          {label: data2? 'All' : 'Avg CM($)', data:data1, backgroundColor:'#e5e7eb'}
-        ].concat(data2?[{label:'Selected',data:data2,backgroundColor:'#10b98122',borderColor:'#10b981',borderWidth:1.5}]:[])
-      },
-      options:{
-        plugins:{
-          legend:{ position: data2? 'bottom':'false' },
-          tooltip:{ callbacks:{ label: c=>` ${c.dataset.label}: ${ (c.parsed.y??0).toFixed(1) }` } },
-        },
-        scales:{ x:{ ticks:{ color:'#64748b' } }, y:{ ticks:{ color:'#64748b' } } }
-      },
-      plugins:[{
-        id:'labels',
-        afterDatasetsDraw(chart){ const {ctx}=chart; ctx.save(); ctx.font='9.5px sans-serif'; ctx.fillStyle='#111827';
-          chart.data.datasets.forEach((ds,di)=>{
-            chart.getDatasetMeta(di).data.forEach((bar,bi)=>{ const v=ds.data[bi]; if(!isNaN(v)) ctx.fillText(Number(v).toFixed(1), bar.x-10, bar.y-6); });
-          });
+    function uniq(arr){ return Array.from(new Set(arr.filter(Boolean))); }
+    function scopedRows(exceptKey){
+      return raw.filter(function(r){
+        if(exceptKey!=='SEASON'   && cur.season  !=='All' && get(r,CANON.SEASON)!==cur.season) return false;
+        if(exceptKey!=='CATEGORY' && cur.category!=='All' && get(r,CANON.CATEGORY)!==cur.category) return false;
+        if(exceptKey!=='ITEM'     && cur.item    !=='All' && get(r,CANON.ITEM)!==cur.item) return false;
+        if(exceptKey!=='VENDOR'   && cur.vendor  !=='All' && get(r,CANON.VENDOR)!==cur.vendor) return false;
+        if(exceptKey!=='FIT'      && cur.fit     !=='All' && get(r,CANON.FIT)!==cur.fit) return false;
+        if(exceptKey!=='DOMAIN'   && cur.domain  !=='All' && get(r,CANON.DOMAIN)!==cur.domain) return false;
+        if(fStyle && fStyle.value){
+          var q=fStyle.value.toLowerCase();
+          var a=String(get(r,CANON.STYLE_NO)||'').toLowerCase();
+          var b=String(get(r,CANON.STYLE_DESCRIPTION)||'').toLowerCase();
+          if(a.indexOf(q)===-1 && b.indexOf(q)===-1) return false;
         }
-      }]
-    });
+        return true;
+      });
+    }
+    var baseForFit = scopedRows('FIT');
+    var fitVals = uniq(baseForFit.map(function(r){ return get(r,CANON.FIT); })).sort();
+    setOpts(fFit, fitVals);
+    cur.fit = fFit.value;
+
+    setOpts(fSeason,   uniq(scopedRows('SEASON').map(function(r){return get(r,CANON.SEASON);})).sort());
+    setOpts(fCategory, uniq(scopedRows('CATEGORY').map(function(r){return get(r,CANON.CATEGORY);})).sort());
+    setOpts(fItem,     uniq(scopedRows('ITEM').map(function(r){return get(r,CANON.ITEM);})).sort());
+    setOpts(fVendor,   uniq(scopedRows('VENDOR').map(function(r){return get(r,CANON.VENDOR);})).sort());
+    setOpts(fDomain,   uniq(scopedRows('DOMAIN').map(function(r){return get(r,CANON.DOMAIN);})).sort());
   }
 
-  /* -------- 원가 구조: 부드러운 파스텔 테마 + 라벨 가독성 -------- */
-  function renderCostStructure(){
-    if (chartCost) chartCost.destroy();
-    const g = groupBy(filtered, r=>get(r,CANON.ITEM));
-    const labels = Object.keys(g);
-    const stacks = labels.map(item => {
-      const rows = g[item];
-      const cost = avg(rows.map(r=>toNum(get(r,CANON.COST))));
-      const shell = avg(rows.map(r=>toNum(get(r,CANON.TTL_SHELL))));
-      const lining = avg(rows.map(r=>toNum(get(r,CANON.TTL_LINING))));
-      const pocket = avg(rows.map(r=>toNum(get(r,CANON.POCKET))));
-      const artwork = avg(rows.map(r=>toNum(get(r,CANON.TTL_ARTWORK))));
-      const trim = avg(rows.map(r=>toNum(get(r,CANON.TTL_TRIM))));
-      const cm = avg(rows.map(r=>toNum(get(r,CANON.CM)) * EXRATE));
-      const ins = (item==='DJ'||item==='DV') ? avg(rows.map(r=> ( (toNum(get(r,CANON.TTL_INS))) || (toNum(get(r,CANON.INS_PRICE))*toNum(get(r,CANON.INS_CONS))) ) * EXRATE )) : 0;
-      const known = [shell,lining,pocket,artwork,trim,cm,ins].map(v=>isNaN(v)?0:v).reduce((a,b)=>a+b,0);
-      const etc = Math.max(0, cost - known);
-      const denom = cost>0 ? cost : 1;
-      const pct = (x)=> (x/denom*100);
-      return [ pct(shell||0), pct(lining||0), pct(pocket||0), pct(artwork||0), pct(trim||0), pct(cm||0), pct(ins||0), pct(etc||0) ];
-    });
-
-    /* 은은한 파스텔 팔레트 (라벨 가독성 위해 약간 명도 차등) */
-    const colors=[
-  '#f8d7da', // Shell - pastel pink
-  '#fde2b3', // Lining - pastel orange
-  '#fff3b0', // Pocket/Etc - pastel yellow
-  '#d4f4dd', // Artwork - pastel mint
-  '#bae6fd', // Trim - pastel blue
-  '#d1c4e9', // CM - pastel purple
-  '#c8e6c9', // Insulation - pastel green
-  '#eceff1'  // ETC - light grey
-];
-    const labelsSeg=['Shell','Lining','Pocket/Etc','Artwork','Trim','CM','Insulation','ETC'];
-    const datasets = colors.map((c,i)=>({
-      label:labelsSeg[i],
-      data: stacks.map(s=>s[i]),
-      backgroundColor:c,
-      borderColor:'#ffffff',
-      borderWidth:1,
-      stack:'s'
-    }));
-    const ctx=document.getElementById('chartCost').getContext('2d');
-    chartCost=new Chart(ctx,{ type:'bar', data:{ labels, datasets },
-      options:{responsive:true, scales:{ x:{stacked:true}, y:{stacked:true, suggestedMax:100, ticks:{callback:v=>v+'%'}}}, plugins:{legend:{position:'bottom'}}},
-      plugins:[{
-        id:'segPct',
-        afterDatasetsDraw(chart){ const {ctx}=chart; ctx.save(); ctx.font='11px sans-serif'; ctx.fillStyle='#1f2937';
-          for(let di=0; di<chart.data.datasets.length; di++){
-            const meta=chart.getDatasetMeta(di);
-            meta.data.forEach((bar,bi)=>{ const val=chart.data.datasets[di].data[bi]; if(isNaN(val)||val<7) return; ctx.fillText(Math.round(val)+'%', bar.x-12, bar.y+12); });
-          }
-        }
-      }]
-    });
+  function applyFilters(){
+    filtered=raw.filter(function(r){
+      if(fSeason.value!=='All'&&get(r,CANON.SEASON)!==fSeason.value)return false;
+      if(fCategory.value!=='All'&&get(r,CANON.CATEGORY)!==fCategory.value)return false;
+      if(fItem.value!=='All'&&get(r,CANON.ITEM)!==fItem.value)return false;
+      if(fVendor.value!=='All'&&get(r,CANON.VENDOR)!==fVendor.value)return false;
+      if(fFit.value!=='All'&&get(r,CANON.FIT)!==fFit.value)return false;
+      if(fDomain.value!=='All'&&get(r,CANON.DOMAIN)!==fDomain.value)return false;
+      if(fStyle&&fStyle.value){
+        var q=fStyle.value.toLowerCase();var a=String(get(r,CANON.STYLE_NO)||'').toLowerCase();var b=String(get(r,CANON.STYLE_DESCRIPTION)||'').toLowerCase();
+        if(a.indexOf(q)===-1 && b.indexOf(q)===-1) return false
+      }
+      return true
+    })
   }
 
-  /* -------- M/U 트래킹: 복종 선택 시 벤더별 + 은은한 색 -------- */
-  function renderMU(){
-    if (chartMU) chartMU.destroy();
+  function rowsExcept(except){ return raw.filter(function(r){
+    if(except!=='SEASON'&&fSeason.value!=='All'&&get(r,CANON.SEASON)!==fSeason.value)return false;
+    if(except!=='CATEGORY'&&fCategory.value!=='All'&&get(r,CANON.CATEGORY)!==fCategory.value)return false;
+    if(except!=='ITEM'&&fItem.value!=='All'&&get(r,CANON.ITEM)!==fItem.value)return false;
+    if(except!=='VENDOR'&&fVendor.value!=='All'&&get(r,CANON.VENDOR)!==fVendor.value)return false;
+    if(except!=='FIT'&&fFit.value!=='All'&&get(r,CANON.FIT)!==fFit.value)return false;
+    if(except!=='DOMAIN'&&fDomain.value!=='All'&&get(r,CANON.DOMAIN)!==fDomain.value)return false;
+    if(fStyle&&fStyle.value){
+      var q=fStyle.value.toLowerCase();var a=String(get(r,CANON.STYLE_NO)||'').toLowerCase();var b=String(get(r,CANON.STYLE_DESCRIPTION)||'').toLowerCase();
+      if(a.indexOf(q)===-1 && b.indexOf(q)===-1) return false
+    }
+    return true; }) }
 
-    const itemSel   = fItem.value !== 'All';
-    const vendorSel = fVendor.value !== 'All';
-    const fitSel    = fFit.value    !== 'All';
-    const domainSel = fDomain.value !== 'All';
+  /* ===== 차트 ===== */
+  function muWeighted(rows){var C=sum(rows.map(ttlCost)); var T=sum(rows.map(ttlTag)); return C>0?T/C:NaN}
+  function dlNumberFormatter(value){ var n=Number(value); if(!isFinite(n)) return ''; var hasDec=Math.abs(n%1)>1e-9; return hasDec? n.toFixed(2) : String(n); }
 
-    const muWeighted = (rows) => { const C=sum(rows.map(ttlCost)); const T=sum(rows.map(ttlTag)); return C>0? (T/C):NaN; };
+  
+  // [추가 v5.6] 복종 수가 늘어 차트 폭이 커질 때, 2개 차트를 세로로 쌓아(공임 차트를 아래로) 한 화면 내 레이아웃 유지
+  function adjustMainChartLayout(){
+    try{
+      if(document.body.getAttribute('data-view')!=='main'){ document.body.classList.remove('stack-charts'); return; }
+      var grid=document.querySelector('#view-main .grid-2');
+      if(!grid) return;
+      // 현재 2열 레이아웃일 때만 판단 (모바일/좁은 화면은 이미 1열)
+      var cs=getComputedStyle(grid);
+      var cols=(cs.gridTemplateColumns||'').split(' ').filter(Boolean).length;
+      if(cols<2){ document.body.classList.remove('stack-charts'); return; }
 
-    let labels=[], datasets=[];
+      var muW = $('muInner') ? $('muInner').offsetWidth : 0;
+      var cmW = $('cmInner') ? $('cmInner').offsetWidth : 0;
+      var available = grid.clientWidth;
+      var half = (available - 16) / 2; // gap(16px) 고려
+      // 둘 중 하나라도 반쪽 폭을 넘어가면 세로로 쌓기
+      if(muW > half || cmW > half){
+        document.body.classList.add('stack-charts');
+      } else {
+        document.body.classList.remove('stack-charts');
+      }
+    }catch(e){ /* no-op */ }
+  }
 
-    if (itemSel) {
-      const item = fItem.value;
-      const vendorRows = filtered.filter(r => get(r, CANON.ITEM) === item);
-      const vendors = Array.from(new Set(vendorRows.map(r => get(r, CANON.VENDOR) || '-')));
-      labels = vendors.map(shortVendor);
-      const dataVendor = vendors.map(v => muWeighted(vendorRows.filter(r => (get(r, CANON.VENDOR) || '-') === v)));
-
-      datasets = [
-        { label: `${item} · Vendors (Filtered)`, data: dataVendor, backgroundColor:'#a7f3d0', borderColor:'#10b981', borderWidth:1 } /* ← 부드러운 민트 */
+function renderMU(){
+    if(chartMU) chartMU.destroy();
+    var itemSel=fItem.value!=='All', vendorSel=fVendor.value!=='All', fitSel=fFit.value!=='All', domainSel=fDomain.value!=='All';
+    var labels=[],datasets=[];
+    if(itemSel && vendorSel){
+      var item=fItem.value;
+      var allBase=rowsExcept('VENDOR').filter(function(r){return get(r,CANON.ITEM)===item});
+      var selBase=filtered.filter(function(r){return get(r,CANON.ITEM)===item});
+      labels=[item];
+      datasets=[
+        {label:'All',data:[muWeighted(allBase)],backgroundColor:'#cbd5e1'},
+        {label:shortVendor(fVendor.value)+' (Filtered)',data:[muWeighted(selBase)],backgroundColor:'#10b98122',borderColor:'#10b981',borderWidth:1.5}
       ];
+    } else if(itemSel){
+      var rowsI=filtered.filter(function(r){return get(r,CANON.ITEM)===fItem.value});
+      var vendors=Array.from(new Set(rowsI.map(function(r){return get(r,CANON.VENDOR)||'-'})));
+      labels=vendors.map(shortVendor);
+      var dataVendor=vendors.map(function(v){return muWeighted(rowsI.filter(function(r){return (get(r,CANON.VENDOR)||'-')===v}))});
+      datasets=[{label:fItem.value+' · Vendors (Filtered)',data:dataVendor,backgroundColor:'#a7f3d0',borderColor:'#10b981',borderWidth:1}];
     } else {
-      const items = Object.keys(groupBy(raw, r => get(r, CANON.ITEM)));
-      labels = items;
-
-      if (vendorSel || fitSel || domainSel) {
-        const dataAll = items.map(item => muWeighted(raw.filter(r => get(r, CANON.ITEM) === item)));
-        const dataSel = items.map(item => muWeighted(filtered.filter(r => get(r, CANON.ITEM) === item)));
-        datasets = [
-          { label:'All',      data:dataAll, backgroundColor:'#cbd5e1' },
-          { label:'Filtered', data:dataSel, backgroundColor:'#10b98122', borderColor:'#10b981', borderWidth:1.5 }
+      var items=Object.keys(groupBy(filtered,function(r){return get(r,CANON.ITEM)}));
+      labels=items;
+      if(vendorSel||fitSel||domainSel){
+        var base = vendorSel? rowsExcept('VENDOR') : (fitSel? rowsExcept('FIT') : rowsExcept('DOMAIN'));
+        var dataAll=items.map(function(it){return muWeighted(base.filter(function(r){return get(r,CANON.ITEM)===it}))});
+        var dataSel=items.map(function(it){return muWeighted(filtered.filter(function(r){return get(r,CANON.ITEM)===it}))});
+        datasets=[
+          {label:'All',data:dataAll,backgroundColor:'#cbd5e1'},
+          {label:'Filtered',data:dataSel,backgroundColor:'#10b98122',borderColor:'#10b981',borderWidth:1.5}
         ];
       } else {
-        const data = items.map(item => muWeighted(filtered.filter(r => get(r, CANON.ITEM) === item)));
-        datasets = [{ label:'평균 M/U (가중)', data, backgroundColor:'#e5e7eb' }];
+        var data=items.map(function(it){return muWeighted(filtered.filter(function(r){return get(r,CANON.ITEM)===it}))});
+        datasets=[{label:'평균 M/U (가중)',data:data,backgroundColor:'#e5e7eb'}];
       }
     }
+    var w=Math.max(720,(labels.length||1)*48); $('muInner').style.width=w+'px';
+    chartMU=new Chart($('chartMU').getContext('2d'),{
+      type:'bar',
+      data:{labels:labels,datasets:datasets},
+      options:{
+        scales:{y:{beginAtZero:true,ticks:{color:'#64748b'}},x:{ticks:{color:'#64748b'}}},
+        plugins:{
+          legend:{display:true,position:'bottom'},
+          annotation:{annotations:{line:{type:'line',yMin:MU_TARGET,yMax:MU_TARGET,borderColor:'#ef4444',borderDash:[6,4],borderWidth:2,label:{display:true,content:'Target '+MU_TARGET.toFixed(1)}}}},
+          datalabels:{anchor:'end', align:'end', offset:2, clamp:true,formatter:dlNumberFormatter,color:'#111827', font:{size:10,weight:'600'}}
+        }
+      }
+    });
+    adjustMainChartLayout();
 
-    const ctx = document.getElementById('chartMU').getContext('2d');
-    chartMU = new Chart(ctx, {
-      type: 'bar',
-      data: { labels, datasets },
-      options: {
-        scales: { y:{ beginAtZero:true, ticks:{ color:'#64748b' } }, x:{ ticks:{ color:'#64748b' } } },
-        plugins: {
-          legend: { display: true, position: 'bottom' },
-          annotation: {
-            annotations: {
-              line: { type:'line', yMin:MU_TARGET, yMax:MU_TARGET, borderColor:'#ef4444', borderDash:[6,4], borderWidth:2,
-                      label:{display:true, content:'Target '+MU_TARGET.toFixed(1)} }
+  }
+
+  function renderCM(){
+    if(chartCM) chartCM.destroy();
+    var itemSel=fItem.value!=='All', vendorSel=fVendor.value!=='All', fitSel=fFit.value!=='All', domainSel=fDomain.value!=='All';
+    var labels=[],data1=[],data2=null,mode='by ITEM';
+    function avg(a){var v=a.map(toNum).filter(function(x){return !isNaN(x)});return v.length? v.reduce(function(p,c){return p+c},0)/v.length : NaN}
+    if(itemSel && vendorSel){
+      mode='Vendor vs All in '+fItem.value;
+      var allRows=rowsExcept('VENDOR').filter(function(r){return get(r,CANON.ITEM)===fItem.value});
+      var selRows=filtered.filter(function(r){return get(r,CANON.ITEM)===fItem.value});
+      labels=[fItem.value]; data1=[avg(allRows.map(function(r){return get(r,CANON.CM)}))]; data2=[avg(selRows.map(function(r){return get(r,CANON.CM)}))];
+    } else if(itemSel && !vendorSel && !fitSel && !domainSel){
+      mode='Vendors in '+fItem.value;
+      var rowsI=filtered.filter(function(r){return get(r,CANON.ITEM)===fItem.value});
+      var g=groupBy(rowsI,function(r){return get(r,CANON.VENDOR)||'-'});
+      var keys=Object.keys(g);
+      labels=keys.map(shortVendor);
+      data1=keys.map(function(k){return avg(g[k].map(function(r){return get(r,CANON.CM)}))});
+    } else if(vendorSel && !itemSel){
+      mode='Vendor vs All ('+fVendor.value+')';
+      var itemsV=Object.keys(groupBy(filtered,function(r){return get(r,CANON.ITEM)}));
+      labels=itemsV;
+      var baseV=rowsExcept('VENDOR');
+      var gAllV=groupBy(baseV,function(r){return get(r,CANON.ITEM)});
+      var gSelV=groupBy(filtered,function(r){return get(r,CANON.ITEM)});
+      data1=labels.map(function(k){return avg((gAllV[k]||[]).map(function(r){return get(r,CANON.CM)}))});
+      data2=labels.map(function(k){return avg((gSelV[k]||[]).map(function(r){return get(r,CANON.CM)}))});
+    } else if(fitSel && !itemSel){
+      mode='FIT vs All ('+fFit.value+')';
+      var itemsF=Object.keys(groupBy(filtered,function(r){return get(r,CANON.ITEM)}));
+      labels=itemsF;
+      var baseF=rowsExcept('FIT');
+      var gAllF=groupBy(baseF,function(r){return get(r,CANON.ITEM)});
+      var gSelF=groupBy(filtered,function(r){return get(r,CANON.ITEM)});
+      data1=labels.map(function(k){return avg((gAllF[k]||[]).map(function(r){return get(r,CANON.CM)}))});
+      data2=labels.map(function(k){return avg((gSelF[k]||[]).map(function(r){return get(r,CANON.CM)}))});
+    } else if(domainSel && !itemSel){
+      mode='DOMAIN vs All ('+fDomain.value+')';
+      var itemsD=Object.keys(groupBy(filtered,function(r){return get(r,CANON.ITEM)}));
+      labels=itemsD;
+      var baseD=rowsExcept('DOMAIN');
+      var gAllD=groupBy(baseD,function(r){return get(r,CANON.ITEM)});
+      var gSelD=groupBy(filtered,function(r){return get(r,CANON.ITEM)});
+      data1=labels.map(function(k){return avg((gAllD[k]||[]).map(function(r){return get(r,CANON.CM)}))});
+      data2=labels.map(function(k){return avg((gSelD[k]||[]).map(function(r){return get(r,CANON.CM)}))});
+    } else {
+      var g2=groupBy(filtered,function(r){return get(r,CANON.ITEM)||'-'});
+      labels=Object.keys(g2);
+      data1=labels.map(function(k){return avg(g2[k].map(function(r){return get(r,CANON.CM)}))});
+    }
+    $('cmMode').textContent=mode;
+    var w=Math.max(720,(labels.length||1)*48); $('cmInner').style.width=w+'px';
+    chartCM=new Chart($('chartCM').getContext('2d'),{
+      type:'bar',
+      data:{labels:labels,datasets:[{label:data2?'All':'Avg CM($)',data:data1,backgroundColor:'#e5e7eb'}].concat(data2?[{label:'Filtered',data:data2,backgroundColor:'#10b98122',borderColor:'#10b981',borderWidth:1.5}]:[])},
+      options:{
+        plugins:{
+          legend:{display:!!data2,position:'bottom'},
+          datalabels:{anchor:'end',align:'end',offset:2,clamp:true,formatter:dlNumberFormatter,color:'#111827',font:{size:10,weight:'600'}}
+        },
+        scales:{x:{ticks:{color:'#64748b'}},y:{ticks:{color:'#64748b'}}}
+      }
+    });
+    adjustMainChartLayout();
+
+  }
+
+  function renderCost(){
+    if(chartCost) chartCost.destroy();
+    function avg(a){var v=a.map(toNum).filter(function(x){return !isNaN(x)});return v.length? v.reduce(function(p,c){return p+c},0)/v.length : NaN}
+    var g=groupBy(filtered,function(r){return get(r,CANON.ITEM)});
+    var labels=Object.keys(g);
+    var stacks=labels.map(function(item){
+      var rows=g[item];
+      var cost=avg(rows.map(function(r){return get(r,CANON.COST)}));
+      var shell=avg(rows.map(function(r){return get(r,CANON.TTL_FABRIC)}));
+      var lining=0, pocket=0;
+      var artwork=avg(rows.map(function(r){return get(r,CANON.TTL_ARTWORK)}));
+      var trim=avg(rows.map(function(r){return get(r,CANON.TTL_TRIM)}));
+      var cm=avg(rows.map(function(r){return toNum(get(r,CANON.CM))*EXRATE}));
+      var ins=(item==='DJ'||item==='DV')?avg(rows.map(function(r){
+        var t=toNum(get(r,CANON.TTL_INS)); if(!isNaN(t)) return t*EXRATE;
+        var p=toNum(get(r,CANON.INS_PRICE)); var c=toNum(get(r,CANON.INS_CONS));
+        return (isNaN(p)||isNaN(c))?0:p*c*EXRATE;
+      })):0;
+      var known=[shell,lining,pocket,artwork,trim,cm,ins].map(function(v){return isNaN(v)?0:v}).reduce(function(a,b){return a+b},0);
+      var etc=Math.max(0,(isNaN(cost)?0:cost)-known);
+      var denom=(isNaN(cost)||cost<=0)?1:cost;
+      var pct=function(x){return (x/denom*100)};
+      return [pct(shell||0),pct(lining||0),pct(pocket||0),pct(artwork||0),pct(trim||0),pct(cm||0),pct(ins||0),pct(etc||0)];
+    });
+    var colors=['#f8d7da','#fde2b3','#fff3b0','#d4f4dd','#bae6fd','#d1c4e9','#c8e6c9','#eceff1'];
+    var labelsSeg=['Shell','Lining','Pocket/Etc','Artwork','Trim','CM','Insulation','ETC'];
+    var datasets=colors.map(function(c,i){
+      return{label:labelsSeg[i],data:stacks.map(function(s){return s[i]}),backgroundColor:c,borderColor:'#ffffff',borderWidth:1,stack:'s'};
+    });
+    $('costInner').style.width=Math.max(820,labels.length*64)+'px';
+    chartCost=new Chart($('chartCost').getContext('2d'),{
+      type:'bar',
+      data:{labels:labels,datasets:datasets},
+      options:{
+        responsive:true,
+        scales:{x:{stacked:true},y:{stacked:true,suggestedMax:100,ticks:{callback:function(v){return v+'%'}}}},
+        plugins:{
+          legend:{position:'bottom'},
+          datalabels:{
+            anchor:'center',align:'center',
+            formatter:function(v){return Math.round(v)+'%'},
+            color:'#111827',font:{size:9,weight:'600'},display:function(ctx){
+              var val=ctx.dataset.data[ctx.dataIndex]; return val>=1;
             }
-          },
-          tooltip: { callbacks:{ label: c=>` ${c.dataset.label}: ${(c.parsed.y ?? 0).toFixed(2)}` } }
+          }
         }
-      },
-      plugins:[{
-        id:'valueOnTop',
-        afterDatasetsDraw(chart){ const {ctx}=chart; ctx.save(); ctx.font='10px sans-serif'; ctx.fillStyle='#111827';
-          chart.data.datasets.forEach((ds,di)=>{ chart.getDatasetMeta(di).data.forEach((bar,bi)=>{ const v=ds.data[bi]; if(!isNaN(v)) ctx.fillText(Number(v).toFixed(2), bar.x-10, bar.y-6); }); });
-        }
-      }]
+      }
     });
   }
 
-  /* -------- 테이블 헤더 드롭다운 필터 -------- */
-function buildTableDropdowns(tableId, rows, renderFn){
-  const table = document.getElementById(tableId);
-  const ths = Array.from(table.querySelectorAll('thead th'));
-  const state = {};       // 확정 상태: null = 전체, Set = 부분 선택
-  const valuesByCol = {}; // 각 컬럼별 유니크 값
+  /* ===== 표 렌더 ===== */
+  var historyCols=[
+    {key:'SEASON',label:'SEASON',type:'text',acc:function(r){return get(r,CANON.SEASON)}},
+    {key:'STYLE_NO',label:'STYLE_NO',type:'text',acc:function(r){return get(r,CANON.STYLE_NO)}},
+    {key:'ITEM',label:'ITEM',type:'text',acc:function(r){return get(r,CANON.ITEM)}},
+    {key:'FIT',label:'FIT',type:'text',acc:function(r){return get(r,CANON.FIT)}},
+    {key:'VENDOR',label:'VENDOR',type:'text',acc:function(r){return get(r,CANON.VENDOR)}},
+    {key:'MU',label:'MU',type:'number',acc:function(r){return toNum(get(r,CANON.MU))}},
+    {key:'TTL_QTY',label:'TTL_QTY',type:'number',acc:function(r){return toNum(get(r,CANON.QTY))}},
+    {key:'TAG',label:'TAG',type:'number',acc:function(r){return toNum(get(r,CANON.TAG))}},
+    {key:'COST_VAT',label:'COST_VAT',type:'number',acc:function(r){return toNum(get(r,CANON.COST))}},
+    {key:'SHELL_PRICE',label:'SHELL_PRICE($)',type:'number',acc:function(r){return toNum(get(r,CANON.SHELL_PRICE))}},
+    {key:'CM',label:'CM($)',type:'number',acc:function(r){return toNum(get(r,CANON.CM))}},
+    {key:'SHELL',label:'SHELL',type:'text',acc:function(r){return get(r,CANON.SHELL)}}
+  ];
+  var detailCols=[
+    {key:'STYLE_NO',label:'STYLE_NO',type:'text',acc:function(r){return get(r,CANON.STYLE_NO)}},
+    {key:'ITEM',label:'ITEM',type:'text',acc:function(r){return get(r,CANON.ITEM)}},
+    {key:'VENDOR',label:'VENDOR',type:'text',acc:function(r){return get(r,CANON.VENDOR)}},
+    {key:'MU',label:'MU',type:'number',acc:function(r){return toNum(get(r,CANON.MU))}},
+    {key:'TTL_QTY',label:'TTL_QTY',type:'number',acc:function(r){return toNum(get(r,CANON.QTY))}},
+    {key:'TTL_CN',label:'TTL_CN',type:'number',acc:function(r){return toNum(get(r,CANON.TTL_CN))}},
+    {key:'TAG',label:'TAG',type:'number',acc:function(r){return toNum(get(r,CANON.TAG))}},
+    {key:'COST_VAT',label:'COST_VAT',type:'number',acc:function(r){return toNum(get(r,CANON.COST))}},
+    {key:'REDUCE',label:'감액 필요(₩)',type:'number',acc:function(r){var tag=toNum(get(r,CANON.TAG));var need=tag/MU_TARGET;var cur=toNum(get(r,CANON.COST));var v=cur-need;return(isNaN(v)||v<0)?0:v}},
+    {key:'SHELL_PRICE',label:'SHELL_PRICE($)',type:'number',acc:function(r){return toNum(get(r,CANON.SHELL_PRICE))}},
+    {key:'CM',label:'CM($)',type:'number',acc:function(r){return toNum(get(r,CANON.CM))}},
+    {key:'SHELL',label:'SHELL',type:'text',acc:function(r){return get(r,CANON.SHELL)}},
+    {key:'SHELL_SUPPLIER',label:'SHELL_SUPPLIER',type:'text',acc:function(r){return get(r,CANON.SHELL_SUPPLIER)}}
+  ];
 
-  // ★ 추가: 숫자칼럼 여부 + 숫자범위 상태
-  const isNumCol = {};
-  const rangeState = {};  // {col:{min:null,max:null}}
+  function buildTableHeader(tableId, cols, state){
+    var tr=document.querySelector('#'+tableId+' thead tr'); if(!tr)return;
+    tr.innerHTML=cols.map(function(c){
+      var baseForFilter = (tableId==='tblHistory'?catItemScopedRows():filtered); // 필터 옵션 계산 기준 행
+      var tempState = {}; // 현재 컬럼 제외한 필터 상태
+      Object.keys(state).forEach(function(key) { if (key !== c.key) { tempState[key] = state[key]; } });
+      var crossFilteredBase = applyGenericFilters(baseForFilter, cols, tempState); // 교차 필터링된 행
+      var allValues = uniqVals(crossFilteredBase.map(c.acc)); // 교차 필터링된 값 목록
+      
+      var s = state[c.key] || {};
+      var isFiltered = (s.selected && s.selected.size !== allValues.length) || s.min != null || s.max != null;
+      return '<th data-col="'+c.key+'" data-table="'+tableId+'">'+c.label + (isFiltered ? ' ▾' : '') +'</th>'
+    }).join('');
 
-  const getVal = (r, col)=>{
-    if(col==='REDUCE_NEED'){
-      const tag = toNum(r[map[CANON.TAG]||CANON.TAG]);
-      const need = tag / MU_TARGET;
-      const cur  = toNum(r[map[CANON.COST]||CANON.COST]);
-      const reduce = cur - need;
-      // 표시용(체크박스 일치 위해 문자열 유지)
-      return isNaN(reduce)?'':fmtKRW(reduce);
-    }
-    return (r[col] ?? r[map[col]] ?? r[col]) ?? '';
-  };
-
-  // ★ 추가: 행에서 숫자 원값 얻기(범위필터/정렬용)
-  const getNumFromRow = (r, col)=>{
-    if(col==='REDUCE_NEED'){
-      const tag = toNum(r[map[CANON.TAG]||CANON.TAG]);
-      const need = tag / MU_TARGET;
-      const cur  = toNum(r[map[CANON.COST]||CANON.COST]);
-      return cur - need;
-    }
-    return toNum(r[col] ?? r[map[col]] ?? r[col]);
-  };
-
-  // ★ 추가: 문자열에서 숫자화(통화, 콤마 포함해도 처리) – 옵션 정렬용
-  const numify = (v)=>{
-    const n = Number(String(v).replace(/[^\d.\-]/g,''));
-    return isNaN(n) ? Number.POSITIVE_INFINITY : n;
-  };
-
-  // 유니크 값 수집
-  ths.forEach(th=>{
-    const col = th.getAttribute('data-col'); if(!col) return;
-
-    // ★ 추가: 숫자칼럼 판정(헤더에 class="num" 또는 대표 숫자 컬럼명)
-    isNumCol[col] = th.classList.contains('num') ||
-      ['MU','MU_TARGET_GAP','QTY_TTL','TAG','COST_VAT','SHELL_PRICE_USD','CM_USD','REDUCE_NEED'].includes(col);
-
-    const vals = Array.from(new Set(rows.map(r=>getVal(r,col)).filter(v=>v!=='')));
-    valuesByCol[col] = vals;
-    state[col] = null;                // 기본: 전체 선택
-    rangeState[col] = {min:null, max:null}; // ★ 숫자 범위 초기화
-  });
-
-  // 드롭다운 DOM 구성 + 이벤트
-  ths.forEach(th=>{
-    const col = th.getAttribute('data-col'); if(!col) return;
-    const hdr = th.querySelector('.hdr');
-    const dd  = hdr.querySelector('.dropdown');
-    const trigger = hdr.querySelector('.th-filter');
-
-    trigger.addEventListener('click', (e)=>{
-      e.stopPropagation();
-      closeAllDropdowns();
-      dd.classList.toggle('show');
-
-      // 내부 DOM
-      dd.innerHTML = `
-        <input class="search" type="text" placeholder="검색..." />
-        ${isNumCol[col] ? `
-          <!-- ★ 추가: 숫자 범위 필터 -->
-          <div class="num-filter" style="display:flex;gap:6px;margin:4px 0 8px 0;">
-            <input type="number" step="any" class="nf-min" placeholder="최소값" style="flex:1;"/>
-            <span class="sep" style="align-self:center;color:#6b7280;">~</span>
-            <input type="number" step="any" class="nf-max" placeholder="최대값" style="flex:1;"/>
-          </div>
-        ` : '' }
-        <div class="opt select-all">
-          <input type="checkbox" class="check-all"/><label>(모두 선택)</label>
-        </div>
-        <div class="opts"></div>
-        <div class="footer" style="position:sticky;bottom:0;background:#fff;padding-top:8px;display:flex;gap:8px;justify-content:flex-end">
-          <button class="btn-mini ok">확인</button>
-          <button class="btn-mini cancel">취소</button>
-        </div>
-      `;
-
-      /* 드롭다운 높이를 카드/화면에 맞춰 동적 제한 */
-      const optsEl = dd.querySelector('.opts');
-      const MARGIN = 24;           // 아래 여백
-      const HEAD_FOOT = 120;       // 검색 + (모두선택) + 숫자필터 + 풋터 대략치 (★ 범위필터 고려)
-      const rect = dd.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.top - MARGIN;
-      const avail = Math.max(180, Math.min(360, spaceBelow));
-      dd.style.maxHeight = avail + 'px';
-      optsEl.style.maxHeight = Math.max(120, avail - HEAD_FOOT) + 'px';
-
-      const searchEl = dd.querySelector('.search');
-      const okBtn    = dd.querySelector('.ok');
-      const cancelBtn= dd.querySelector('.cancel');
-      const checkAll = dd.querySelector('.check-all');
-
-      // ★ 추가: 범위 입력 복원
-      if(isNumCol[col]){
-        const nfMin = dd.querySelector('.nf-min');
-        const nfMax = dd.querySelector('.nf-max');
-        if(rangeState[col].min!==null) nfMin.value = rangeState[col].min;
-        if(rangeState[col].max!==null) nfMax.value = rangeState[col].max;
-      }
-
-      // 열린 동안만 사용하는 임시 선택 상태
-      let tempSel = state[col] ? new Set(state[col]) : null;
-      let shown = [];
-
-      // ★ 변경: 정렬(숫자→오름차순 / 문자→가나다·알파벳)
-      const sortedBase = ()=>{
-        const base = valuesByCol[col].slice();
-        if(isNumCol[col]) return base.sort((a,b)=> numify(a)-numify(b));
-        return base.sort((a,b)=> String(a).localeCompare(String(b),'ko',{numeric:true,sensitivity:'base'}));
-      };
-
-      function renderOpts(){
-        const ft = (searchEl.value||'').trim().toLowerCase();
-        shown = sortedBase().filter(v => !ft || String(v).toLowerCase().includes(ft));
-        optsEl.innerHTML = shown.map(v=>{
-          const checked = !tempSel || tempSel.has(String(v));
-          return `<div class="opt"><input type="checkbox" value="${String(v).replace(/"/g,'&quot;')}" ${checked?'checked':''}/><label title="${v}">${v}</label></div>`;
-        }).join('') || `<div class="muted" style="padding:6px 2px;">옵션 없음</div>`;
-        updateSelectAllState();
-      }
-
-      function updateSelectAllState(){
-        if(shown.length===0){ checkAll.indeterminate=false; checkAll.checked=false; return; }
-        const checkedCnt = shown.reduce((acc,v)=>acc + ((!tempSel || tempSel.has(String(v)))?1:0), 0);
-        checkAll.indeterminate = checkedCnt>0 && checkedCnt<shown.length;
-        checkAll.checked = checkedCnt===shown.length;
-      }
-
-      // (모두 선택): 현재 보이는 항목 기준
-      checkAll.addEventListener('change', ()=>{
-        if(checkAll.checked){
-          if(tempSel){ shown.forEach(v=>tempSel.add(String(v))); }
-          if(tempSel && tempSel.size===valuesByCol[col].length) tempSel=null; // 모두 선택 → 전체(null)
-        }else{
-          if(!tempSel) tempSel = new Set(valuesByCol[col]); // 전체에서 부분으로 전환
-          shown.forEach(v=>tempSel.delete(String(v)));
-        }
-        renderOpts();
+    tr.querySelectorAll('th[data-col]').forEach(function(th){
+      th.addEventListener('click', function(e){
+        e.stopPropagation();
+        var tableId = e.currentTarget.getAttribute('data-table');
+        var colKey = e.currentTarget.getAttribute('data-col');
+        showFilterPopup(e.currentTarget, tableId, colKey);
       });
-
-      // 개별 체크(이 핸들러는 열 때마다 교체해서 중복 방지)
-      dd.onchange = (ev)=>{
-        if(ev.target && ev.target.matches('.opts input[type=checkbox]')){
-          const v = ev.target.value;
-          if(!tempSel) tempSel = new Set(valuesByCol[col]);
-          if(ev.target.checked) tempSel.add(v); else tempSel.delete(v);
-          if(tempSel.size===valuesByCol[col].length) tempSel=null; // 전체로 축약
-          updateSelectAllState();
-        }
-      };
-
-      // 검색
-      searchEl.addEventListener('input', renderOpts);
-
-      // 확인/취소
-      okBtn.addEventListener('click', ()=>{
-        state[col] = tempSel;      // 확정 반영
-
-        // ★ 추가: 숫자 범위 저장
-        if(isNumCol[col]){
-          const minVal = dd.querySelector('.nf-min')?.value ?? '';
-          const maxVal = dd.querySelector('.nf-max')?.value ?? '';
-          rangeState[col] = {
-            min: minVal==='' ? null : Number(minVal),
-            max: maxVal==='' ? null : Number(maxVal)
-          };
-        }
-
-        applyAndRender();
-        dd.classList.remove('show');
-      });
-      cancelBtn.addEventListener('click', ()=>{
-        dd.classList.remove('show'); // 반영 안 함
-      });
-
-      renderOpts(); // 초기 렌더
     });
-  });
-
-  // 필터 통과 여부
-  function passRow(r){
-    // 체크박스 + 숫자범위 모두 평가
-    for(const col of Object.keys(valuesByCol)){
-      const sel = state[col];
-      if(sel){ // 체크박스 선택
-        const cellVal = getVal(r, col);
-        if(!sel.has(String(cellVal))) return false;
-      }
-      // ★ 추가: 숫자 범위 필터
-      const rng = rangeState[col];
-      if(rng && (rng.min!==null || rng.max!==null)){
-        const num = getNumFromRow(r, col);
-        if(isNaN(num)) return false;
-        if(rng.min!==null && num < rng.min) return false;
-        if(rng.max!==null && num > rng.max) return false;
-      }
-    }
-    return true;
   }
-  function applyAndRender(){ renderFn(rows.filter(passRow)); }
 
-  // 초기 렌더
-  applyAndRender();
-}
+  function closeFilterPopup() {
+    if (currentFilterPopup) {
+      currentFilterPopup.remove();
+      currentFilterPopup = null;
+    }
+    document.removeEventListener('click', closeFilterPopup);
+  }
 
-/* 전역: 바깥 클릭 시 모든 드롭다운 닫기(중복 등록 없이 1회) */
-function closeAllDropdowns(){
-  document.querySelectorAll('.dropdown.show').forEach(x=>x.classList.remove('show'));
-}
-document.addEventListener('click', (ev)=>{
-  if(ev.target.closest('.dropdown') || ev.target.closest('.th-filter')) return;
-  closeAllDropdowns();
-});
+  function showFilterPopup(targetElement, tableId, colKey) {
+    closeFilterPopup();
 
-function renderDetailRows(rows){
-  const html=rows.map(r=>{
-    const mu=toNum(get(r,CANON.MU)); const gap=isNaN(mu)?NaN: (mu - MU_TARGET);
-    const qty=toNum(get(r,CANON.QTY));
-    return `<tr class="${mu<MU_TARGET?'danger':''}">
-      <td>${get(r,CANON.STYLE_NO)||'-'}</td>
-      <td>${get(r,CANON.ITEM)||'-'}</td>
-      <td>${get(r,CANON.VENDOR)||'-'}</td>
-      <td class="num">${isNaN(qty)?'-':qty.toLocaleString('ko-KR')}</td>
-      <td class="num">${fmtKRW(get(r,CANON.TAG))}</td>
-      <td class="num">${fmtKRW(get(r,CANON.COST))}</td>
-      <td class="num">${isNaN(mu)?'-':mu.toFixed(2)}</td>
-      <td class="num">${isNaN(gap)?'-':gap.toFixed(2)}</td>
-    </tr>`;
-  }).join('');
-  tblDetailBody.innerHTML=html||'<tr><td colspan="8" class="muted">No rows</td></tr>';
-}
+    var cols, state, baseRows, renderFunc, allValues;
+    if (tableId === 'tblHistory') {
+      cols = historyCols;
+      state = histFilterState;
+      baseRows = catItemScopedRows();
+      renderFunc = renderHistory;
+    } else {
+      cols = detailCols;
+      state = detailFilterState;
+      baseRows = filtered.slice();
+      renderFunc = renderDetail;
+    }
 
-function renderRedRows(rows){
-  const reds=rows.filter(r=>toNum(get(r,CANON.MU))<MU_TARGET);
-  const html=reds.map(r=>{
-    const tag=toNum(get(r,CANON.TAG));
-    const need=tag/MU_TARGET; // 내부 계산만 사용
-    const cur=toNum(get(r,CANON.COST));
-    const reduce=cur-need;
-    return `<tr>
-      <td>${get(r,CANON.STYLE_NO)||'-'}</td>
-      <td>${get(r,CANON.ITEM)||'-'}</td>
-      <td>${get(r,CANON.VENDOR)||'-'}</td>
-      <td class="num danger">${toNum(get(r,CANON.MU)).toFixed(2)}</td>
-      <td class="num">${fmtKRW(tag)}</td>
-      <td class="num">${fmtKRW(cur)}</td>
-      <td class="num">${fmtKRW(reduce)}</td>
-      <td class="num">${fmtUSD(get(r,CANON.SHELL_PRICE))}</td>
-      <td class="num">${fmtUSD(get(r,CANON.CM))}</td>
-      <td>${get(r,CANON.SHELL)||'-'}</td>
-      <td>${get(r,CANON.SHELL_SUPPLIER)||'-'}</td>
-    </tr>`;
-  }).join('');
-  tblRedBody.innerHTML=html||'<tr><td colspan="11" class="muted">No red flags</td></tr>';
-}
+    var col = cols.find(function(c){ return c.key === colKey; });
+    if (!col) return;
+
+    var currentState = state[colKey] || {};
+    
+    var tempState = {};
+    Object.keys(state).forEach(function(key) {
+      if (key !== colKey) { tempState[key] = state[key]; }
+    });
+    var crossFilteredRows = applyGenericFilters(baseRows, cols, tempState);
+    
+    var popup = document.createElement('div');
+    popup.className = 'filter-popup';
+    currentFilterPopup = popup;
+
+    var html = '';
+
+    if (col.type === 'number') {
+      html += '<div class="filter-popup-range">'
+            + '<input type="number" id="filter-min" placeholder="Min" style="width:100%" value="'+(currentState.min != null ? currentState.min : '')+'">'
+            + '<input type="number" id="filter-max" placeholder="Max" style="width:100%" value="'+(currentState.max != null ? currentState.max : '')+'">'
+            + '</div>';
+    }
+
+    allValues = uniqVals(crossFilteredRows.map(col.acc)).sort(function(a,b){
+      if(col.type==='number') return toNum(a) - toNum(b);
+      return String(a).localeCompare(String(b));
+    });
+    
+    var searchInput = '<input type="text" id="filter-search" class="filter-popup-search" placeholder="검색...">';
+    var currentSet = currentState.selected || null;
+    
+    var listItems = allValues.map(function(val) {
+      var label = String(val || '(Blank)');
+      var checked = (!currentSet || currentSet.has(label)) ? 'checked' : ''; 
+      return '<label><input type="checkbox" class="filter-cb" value="'+label+'" '+checked+'> '+label+'</label>';
+    }).join('');
+    
+    html += searchInput
+          + '<div class="filter-popup-list">'
+          + '<label><input type="checkbox" id="filter-select-all" '+(!currentSet || currentSet.size === allValues.length ? 'checked' : '')+'> (Select All)</label>'
+          + listItems
+          + '</div>';
+
+    html += '<div class="filter-popup-buttons">'
+          + '<button class="btn btn-link" id="filter-clear">Clear</button>'
+          + '<button class="btn btn-primary" id="filter-apply">Apply</button>'
+          + '</div>';
+
+    popup.innerHTML = html;
+    document.body.appendChild(popup);
+
+    var rect = targetElement.getBoundingClientRect();
+
+    // 팝업이 화면 밖으로 나가 'Apply' 버튼이 가려지지 않도록 위치/크기 보정
+    var margin = 8;
+    var vw = window.innerWidth || document.documentElement.clientWidth;
+    var vh = window.innerHeight || document.documentElement.clientHeight;
+
+    // 먼저 기본 위치를 아래로 잡고, 실제 크기를 측정한 뒤 보정
+    popup.style.top = (rect.bottom + window.scrollY + 2) + 'px';
+    popup.style.left = (rect.left + window.scrollX) + 'px';
+
+    // 렌더링 후 실제 크기 계산
+    var pw = popup.offsetWidth;
+    var ph = popup.offsetHeight;
+
+    // 가로: 화면 안으로 클램프
+    var left = rect.left + window.scrollX;
+    if (left + pw > vw - margin) left = (vw - margin - pw);
+    if (left < margin) left = margin;
+    popup.style.left = left + 'px';
+
+    // 세로: 아래 공간이 부족하면 위로 띄움 + max-height를 남은 공간에 맞춤
+    var below = vh - rect.bottom - margin;
+    var above = rect.top - margin;
+
+    var placeBelow = below >= 180 || below >= above;
+    var avail = placeBelow ? below : above;
+
+    // 최소 160px 확보 (너무 작으면 스크롤)
+    var maxH = Math.max(160, Math.min(420, avail));
+    popup.style.maxHeight = maxH + 'px';
+
+    // max-height 적용 후 다시 높이 재측정해서 top 보정
+    ph = popup.offsetHeight;
+
+    var top = placeBelow
+      ? (rect.bottom + window.scrollY + 2)
+      : (rect.top + window.scrollY - ph - 2);
+
+    // 화면 상단/하단 클램프
+    var minTop = window.scrollY + margin;
+    var maxTop = window.scrollY + vh - margin - ph;
+    if (top < minTop) top = minTop;
+    if (top > maxTop) top = maxTop;
+    popup.style.top = top + 'px';
+
+    popup.addEventListener('click', function(e){ e.stopPropagation(); });
+    
+    setTimeout(function() {
+      document.addEventListener('click', closeFilterPopup);
+    }, 0);
+    
+    var searchBox = popup.querySelector('#filter-search');
+    var allCheck = popup.querySelector('#filter-select-all');
+    var checkList = popup.querySelectorAll('.filter-cb');
+
+    searchBox.addEventListener('input', function(e) {
+      var term = e.target.value.toLowerCase();
+      popup.querySelectorAll('.filter-popup-list label').forEach(function(labelEl, idx) {
+        if (idx === 0) return;
+        var matches = labelEl.textContent.toLowerCase().indexOf(term) > -1;
+        labelEl.style.display = matches ? 'block' : 'none';
+      });
+    });
+
+    allCheck.addEventListener('change', function(e) {
+      var isChecked = e.target.checked;
+      checkList.forEach(function(cb){ cb.checked = isChecked; });
+    });
+    
+    checkList.forEach(function(cb) {
+      cb.addEventListener('change', function() {
+        if (!cb.checked) {
+          allCheck.checked = false;
+        } else {
+          var allChecked = true;
+          checkList.forEach(function(cb_inner){ if(!cb_inner.checked) allChecked = false; });
+          allCheck.checked = allChecked;
+        }
+      });
+    });
+
+    popup.querySelector('#filter-apply').addEventListener('click', function() {
+      var newState = {};
+      if (col.type === 'number') {
+        var min = popup.querySelector('#filter-min').value;
+        var max = popup.querySelector('#filter-max').value;
+        if (min !== '') newState.min = Number(min);
+        if (max !== '') newState.max = Number(max);
+      }
+      var selected = new Set();
+      checkList.forEach(function(cb) {
+        if (cb.checked) {
+          selected.add(cb.value);
+        }
+      });
+      if (selected.size !== allValues.length) {
+        newState.selected = selected;
+      }
+      
+      if (Object.keys(newState).length > 0) {
+        state[colKey] = newState;
+      } else {
+        delete state[colKey];
+      }
+      renderFunc();
+      closeFilterPopup();
+    });
+
+    popup.querySelector('#filter-clear').addEventListener('click', function() {
+      delete state[colKey];
+      renderFunc();
+      closeFilterPopup();
+    });
+  }
 
 
+  function catItemScopedRows(){ return raw.filter(function(r){ if(fCategory.value!=='All'&&get(r,CANON.CATEGORY)!==fCategory.value)return false; if(fItem.value!=='All'&&get(r,CANON.ITEM)!==fItem.value)return false; return true; }) }
+
+  function renderHistory(){
+    buildTableHeader('tblHistory',historyCols,histFilterState);
+    var base=catItemScopedRows();
+    var rows=applyGenericFilters(base,historyCols,histFilterState);
+    var tbody=$('tblHistory').querySelector('tbody');
+    var html=rows.map(function(r){
+      var mu=toNum(get(r,CANON.MU));
+      return '<tr>'
+        +'<td>'+(get(r,CANON.SEASON)||'-')+'</td>'
+        +'<td>'+(get(r,CANON.STYLE_NO)||'-')+'</td>'
+        +'<td>'+(get(r,CANON.ITEM)||'-')+'</td>'
+        +'<td>'+(get(r,CANON.FIT)||'-')+'</td>'
+        +'<td>'+(shortVendor(get(r,CANON.VENDOR))||'-')+'</td>'
+        +'<td class="num">'+(isNaN(mu)?'-':fmtSmartNum(mu))+'</td>'
+        +'<td class="num">'+fmtSmartNum(get(r,CANON.QTY))+'</td>'
+        +'<td class="num">'+fmtKRW(get(r,CANON.TAG))+'</td>'
+        +'<td class="num">'+fmtKRW(get(r,CANON.COST))+'</td>'
+        +'<td class="num">'+fmtUSD(get(r,CANON.SHELL_PRICE))+'</td>'
+        +'<td class="num">'+fmtUSD(get(r,CANON.CM))+'</td>'
+        +'<td>'+(get(r,CANON.SHELL)||'-')+'</td>'
+        +'</tr>';
+    }).join('');
+    tbody.innerHTML=html||'<tr><td colspan="'+historyCols.length+'" class="muted" style="text-align:center;padding:16px;">No rows</td></tr>';
+  }
+
+  function renderDetail(){
+    buildTableHeader('tblDetail',detailCols,detailFilterState);
+    var rows=applyGenericFilters(filtered.slice(),detailCols,detailFilterState);
+    var tbody=$('tblDetail').querySelector('tbody');
+    var html=rows.map(function(r){
+      var mu=toNum(get(r,CANON.MU));
+      var redRow=!isNaN(mu)&&mu<MU_TARGET;
+      var qty=toNum(get(r,CANON.QTY));
+      var ttlcn=toNum(get(r,CANON.TTL_CN));
+      var tag=toNum(get(r,CANON.TAG));
+      var need=tag/MU_TARGET;
+      var cur=toNum(get(r,CANON.COST));
+      var reduce=Math.max(cur-need,0);
+      return '<tr class="'+(redRow?'row-danger':'')+'">'
+        +'<td>'+(get(r,CANON.STYLE_NO)||'-')+'</td>'
+        +'<td>'+(get(r,CANON.ITEM)||'-')+'</td>'
+        +'<td>'+(shortVendor(get(r,CANON.VENDOR))||'-')+'</td>'
+        +'<td class="num">'+(isNaN(mu)?'-':fmtSmartNum(mu))+'</td>'
+        +'<td class="num">'+(isNaN(qty)?'-':qty.toLocaleString('ko-KR'))+'</td>'
+        +'<td class="num">'+(isNaN(ttlcn)?'-':ttlcn.toLocaleString('ko-KR'))+'</td>'
+        +'<td class="num">'+fmtKRW(get(r,CANON.TAG))+'</td>'
+        +'<td class="num">'+fmtKRW(get(r,CANON.COST))+'</td>'
+        +'<td class="num">'+fmtKRW(reduce)+'</td>'
+        +'<td class="num">'+fmtUSD(get(r,CANON.SHELL_PRICE))+'</td>'
+        +'<td class="num">'+fmtUSD(get(r,CANON.CM))+'</td>'
+        +'<td>'+(get(r,CANON.SHELL)||'-')+'</td>'
+        +'<td>'+(get(r,CANON.SHELL_SUPPLIER)||'-')+'</td>'
+        +'</tr>';
+    }).join('');
+    tbody.innerHTML=html||'<tr><td colspan="'+detailCols.length+'" class="muted" style="text-align:center;padding:16px;">No rows</td></tr>';
+  }
+
+  /* ===== KPI ===== */
   function updateKPIs(){
-    const ttlC=sum(filtered.map(r=>ttlCost(r))); const ttlT=sum(filtered.map(r=>ttlTag(r))); const muW=ttlC>0? ttlT/ttlC : NaN;
-    kpiMuAvg.textContent=isNaN(muW)?'-':muW.toFixed(2);
-    const red=filtered.filter(r=>toNum(get(r,CANON.MU))<MU_TARGET).length; kpiRed.textContent=red;
-    const vendors=new Set(filtered.map(r=>get(r,CANON.VENDOR)).filter(Boolean)); kpiVendors.textContent=vendors.size;
+    var ttlC=sum(filtered.map(function(r){return ttlCost(r)}));
+    var ttlT=sum(filtered.map(function(r){return ttlTag(r)}));
+    var muW=ttlC>0?ttlT/ttlC:NaN;
+    (function(){
+    var curSeason = (typeof fSeason!=='undefined' && fSeason && fSeason.value) ? fSeason.value : 'All';
+    var curTxt = isNaN(muW)?'-':(curSeason!=='All' ? (curSeason+' : '+muW.toFixed(2)) : muW.toFixed(2));
+    $('kpiMuAvg').textContent = curTxt;
+
+    // YOY (SS vs SS, FW vs FW): previous year same suffix
+    var yoyEl = $('kpiMuYoy');
+    if(!yoyEl) return;
+    var prevTxt = '';
+    if(curSeason && curSeason!=='All'){
+      var mm = String(curSeason).match(/^(\d{2})(SS|FW)$/i);
+      if(mm){
+        var yy = parseInt(mm[1],10);
+        var suf = mm[2].toUpperCase();
+        var prevSeason = String((yy-1+100)%100).padStart(2,'0') + suf;
+        // apply same filters as main, only season overridden
+        var prevRows = raw.filter(function(r){
+          if(String(get(r,CANON.SEASON)||'').trim().toUpperCase()!==prevSeason) return false;
+          if(fCategory.value!=='All'&&get(r,CANON.CATEGORY)!==fCategory.value)return false;
+          if(fItem.value!=='All'&&get(r,CANON.ITEM)!==fItem.value)return false;
+          if(fVendor.value!=='All'&&get(r,CANON.VENDOR)!==fVendor.value)return false;
+          if(fFit.value!=='All'&&get(r,CANON.FIT)!==fFit.value)return false;
+          if(fDomain.value!=='All'&&get(r,CANON.DOMAIN)!==fDomain.value)return false;
+          if(fStyle&&fStyle.value){
+            var q=fStyle.value.toLowerCase();
+            var a=String(get(r,CANON.STYLE_NO)||'').toLowerCase();
+            var b=String(get(r,CANON.STYLE_DESCRIPTION)||'').toLowerCase();
+            if(a.indexOf(q)===-1 && b.indexOf(q)===-1) return false
+          }
+          return true
+        });
+        if(prevRows.length){
+          var ttlC2=0, ttlT2=0;
+          prevRows.forEach(function(r){
+            var c=ttlCost(r);
+            var t=ttlTag(r);
+            if(!isNaN(c) && c>0){ ttlC2 += c; if(!isNaN(t)) ttlT2 += t; }
+          });
+          var muPrev = ttlC2>0 ? (ttlT2/ttlC2) : NaN;
+          if(!isNaN(muPrev)) prevTxt = prevSeason+' : '+muPrev.toFixed(2);
+        }
+      }
+    }
+    yoyEl.textContent = prevTxt; // empty if no data
+  })()
+    var redCnt=filtered.filter(function(r){return toNum(get(r,CANON.MU))<MU_TARGET}).length;
+    $('kpiRed').textContent=redCnt;
+    var vendors=new Set(filtered.map(function(r){return get(r,CANON.VENDOR)}).filter(Boolean));
+    $('kpiVendors').textContent=vendors.size;
+    var styleCnt=filtered.length;
+    // Summary YOY (prev season vs current season)
+    var curSeason = fSeason.value;
+    var prevSeason = '';
+    if(curSeason && curSeason!=='All'){
+      var mm2 = String(curSeason).match(/^(\d{2})(SS|FW)$/i);
+      if(mm2){
+        var yy2 = parseInt(mm2[1],10);
+        var suf2 = mm2[2].toUpperCase();
+        prevSeason = String((yy2-1+100)%100).padStart(2,'0') + suf2;
+      }
+    }
+    function sameFilters(r, seasonOverride){
+      if(seasonOverride && get(r,CANON.SEASON)!==seasonOverride) return false;
+      if(fCategory.value!=='All'&&get(r,CANON.CATEGORY)!==fCategory.value)return false;
+      if(fItem.value!=='All'&&get(r,CANON.ITEM)!==fItem.value)return false;
+      if(fVendor.value!=='All'&&get(r,CANON.VENDOR)!==fVendor.value)return false;
+      if(fFit.value!=='All'&&get(r,CANON.FIT)!==fFit.value)return false;
+      if(fDomain.value!=='All'&&get(r,CANON.DOMAIN)!==fDomain.value)return false;
+      if(fStyle&&fStyle.value){
+        var q=fStyle.value.toLowerCase();
+        var a=String(get(r,CANON.STYLE_NO)||'').toLowerCase();
+        var b=String(get(r,CANON.STYLE_DESCRIPTION)||'').toLowerCase();
+        if(a.indexOf(q)===-1 && b.indexOf(q)===-1) return false;
+      }
+      return true;
+    }
+    var prevFiltered = (prevSeason? raw.filter(function(r){return sameFilters(r, prevSeason)}): []);
+    var prevStyleCnt = prevFiltered.length;
+
+    var qty=sum(filtered.map(function(r){return get(r,CANON.QTY)}));
+    var prevQty=sum(prevFiltered.map(function(r){return get(r,CANON.QTY)}));
+
+    function sumTagCost(rows){
+      var t=0,c=0;
+      rows.forEach(function(r){
+        var cc=ttlCost(r);
+        var tt=ttlTag(r);
+        if(!isNaN(cc) && cc>0){ c += cc; if(!isNaN(tt)) t += tt; }
+      });
+      return {t:t,c:c};
+    }
+    var prevTC = sumTagCost(prevFiltered);
+
+    // Heads
+    var hPrev=$('kpiSumHeadPrev'), hCur=$('kpiSumHeadCur');
+    if(hPrev) hPrev.textContent = prevSeason||'';
+    if(hCur) hCur.textContent = (curSeason && curSeason!=='All') ? curSeason : '';
+
+    // Values
+    function setText(id, txt){ var el=$(id); if(el) el.textContent=txt; }
+    function setDiff(id, diff, formatted){
+      var el=$(id); if(!el) return;
+      if(diff===null || isNaN(diff)){ el.textContent='-'; return; }
+      var cls = diff>0 ? 'diff-up' : (diff<0 ? 'diff-down' : 'diff-flat');
+      var arrow = diff>0 ? '▲' : (diff<0 ? '▼' : '');
+      el.innerHTML = formatted + (arrow? ' <span class="'+cls+'">'+arrow+'</span>' : '');
+      // also color the number itself for +/-?
+      if(arrow){
+        el.querySelector('span').previousSibling && (el.style.color=''); // noop
+      }
+    }
+
+    // current ids
+    setText('kpiStyleCur', styleCnt.toLocaleString('ko-KR')+' 장');
+    setText('kpiQtyCur', (isNaN(qty)?'-':qty.toLocaleString('ko-KR'))+' pcs');
+    setText('kpiTagCur', fmtEok(ttlT));
+    setText('kpiCostCur', fmtEok(ttlC));
+
+    if(prevSeason && prevFiltered.length){
+      setText('kpiStylePrev', prevStyleCnt.toLocaleString('ko-KR')+' 장');
+      setText('kpiQtyPrev', (isNaN(prevQty)?'-':prevQty.toLocaleString('ko-KR'))+' pcs');
+      setText('kpiTagPrev', fmtEok(prevTC.t));
+      setText('kpiCostPrev', fmtEok(prevTC.c));
+
+      setDiff('kpiStyleDiff', styleCnt - prevStyleCnt, (styleCnt - prevStyleCnt).toLocaleString('ko-KR')+' 장');
+      setDiff('kpiQtyDiff', qty - prevQty, (qty - prevQty).toLocaleString('ko-KR')+' pcs');
+      setDiff('kpiTagDiff', ttlT - prevTC.t, fmtEok(ttlT - prevTC.t));
+      setDiff('kpiCostDiff', ttlC - prevTC.c, fmtEok(ttlC - prevTC.c));
+    }else{
+      setText('kpiStylePrev','-'); setText('kpiQtyPrev','-'); setText('kpiTagPrev','-'); setText('kpiCostPrev','-');
+      setText('kpiStyleDiff','-'); setText('kpiQtyDiff','-'); setText('kpiTagDiff','-'); setText('kpiCostDiff','-');
+    }
+
+    // Backward compatibility (old ids if present)
+    if($('kpiStyleCnt')) $('kpiStyleCnt').textContent=styleCnt.toLocaleString('ko-KR')+' 장';
+    if($('kpiQtySum')) $('kpiQtySum').textContent=(isNaN(qty)?'-':qty.toLocaleString('ko-KR'))+' pcs';
+    if($('kpiTagSum')) $('kpiTagSum').textContent=fmtEok(ttlT);
+    if($('kpiCostSum')) $('kpiCostSum').textContent=fmtEok(ttlC);
   }
 
-  function recomputeAll(){
-    applyFilters();
-    updateKPIs();
-    renderMiniCM();
-    renderCostStructure();
-    renderMU();
-    buildTableDropdowns('tblDetail', filtered, renderDetailRows);
-    buildTableDropdowns('tblRed', filtered, renderRedRows);
+  /* ===== 시즌 비교 (신규) ===== */
+  
+  function seasonBaseRows(){
+    return raw.filter(function(r){
+      if(fCategory.value!=='All' && get(r,CANON.CATEGORY)!==fCategory.value) return false;
+      if(fItem.value!=='All' && get(r,CANON.ITEM)!==fItem.value) return false;
+      if(fVendor.value!=='All' && get(r,CANON.VENDOR)!==fVendor.value) return false;
+      if(fFit.value!=='All' && get(r,CANON.FIT)!==fFit.value) return false;
+      if(fDomain.value!=='All' && get(r,CANON.DOMAIN)!==fDomain.value) return false;
+      if(fStyle && fStyle.value){
+        var q=fStyle.value.toLowerCase();
+        var a=String(get(r,CANON.STYLE_NO)||'').toLowerCase();
+        var b=String(get(r,CANON.STYLE_DESCRIPTION)||'').toLowerCase();
+        if(a.indexOf(q)===-1 && b.indexOf(q)===-1) return false;
+      }
+      return true;
+    });
   }
 
-  function setMU(target){
-    MU_TARGET = Math.max(4.0, Math.min(8.0, Number(target)||5.5));
-    muSlider.value = MU_TARGET.toFixed(1);
-    muInput.value = MU_TARGET.toFixed(1);
-    [muLabel1, muLabel2].forEach(el=> el.textContent = MU_TARGET.toFixed(1));
-    chips.forEach(c=> c.classList.toggle('active', Number(c.dataset.mu)===Number(MU_TARGET.toFixed(1)) ));
-    recomputeAll();
+  function setOpts(sel, values, includeAll){
+    var opts = includeAll? ['All'].concat(values) : values.slice();
+    sel.innerHTML = opts.map(function(v){ return '<option>'+v+'</option>'; }).join('');
   }
+
+  function populateSeasonFiltersNew(){
+    s1Season=$('s1Season'); s1Cat=$('s1Cat'); s1Domain=$('s1Domain'); s1Fit=$('s1Fit'); s1Item=$('s1Item'); s1Vendor=$('s1Vendor');
+    s1QtySel=$('s1QtySel'); s1QtyMin=$('s1QtyMin'); s1QtyMax=$('s1QtyMax'); s1TagSel=$('s1TagSel'); s1TagMin=$('s1TagMin'); s1TagMax=$('s1TagMax');
+    s2Season=$('s2Season'); s2Cat=$('s2Cat'); s2Domain=$('s2Domain'); s2Fit=$('s2Fit'); s2Item=$('s2Item'); s2Vendor=$('s2Vendor');
+    s2QtySel=$('s2QtySel'); s2QtyMin=$('s2QtyMin'); s2QtyMax=$('s2QtyMax'); s2TagSel=$('s2TagSel'); s2TagMin=$('s2TagMin'); s2TagMax=$('s2TagMax');
+    srHead1=$('srHead1'); srHead2=$('srHead2'); srBody=$('srBody');
+    
+    var seasonsAll=uniqVals(raw.map(function(r){ return get(r,CANON.SEASON); })).sort();
+    var s1Prev = s1Season ? s1Season.value : 'All'; // 기존 값 저장
+    var s2Prev = s2Season ? s2Season.value : (seasonsAll.length > 0 ? seasonsAll[0] : 'All'); // 기존 값 저장
+    setOpts(s1Season, seasonsAll, true);
+    setOpts(s2Season, seasonsAll, true);
+    s1Season.value = seasonsAll.includes(s1Prev) ? s1Prev : 'All'; // 기존 값 복원 시도
+    s2Season.value = seasonsAll.includes(s2Prev) ? s2Prev : 'All'; // 기존 값 복원 시도
+
+    var base=seasonBaseRows();
+    var cats   =uniqVals(base.map(function(r){ return get(r,CANON.CATEGORY); })).sort();
+    var domains=uniqVals(base.map(function(r){ return get(r,CANON.DOMAIN); })).sort();
+    var fits   =uniqVals(base.map(function(r){ return get(r,CANON.FIT); })).sort();
+    var items  =uniqVals(base.map(function(r){ return get(r,CANON.ITEM); })).sort();
+    var vendors=uniqVals(base.map(function(r){ return get(r,CANON.VENDOR); })).sort();
+
+    [s1Cat,s2Cat].forEach(function(el){ var p=el.value; setOpts(el,cats,true); el.value = cats.includes(p) ? p : 'All'; });
+    [s1Domain,s2Domain].forEach(function(el){ var p=el.value; setOpts(el,domains,true); el.value = domains.includes(p) ? p : 'All'; });
+    [s1Fit,s2Fit].forEach(function(el){ var p=el.value; setOpts(el,fits,true); el.value = fits.includes(p) ? p : 'All'; });
+    [s1Item,s2Item].forEach(function(el){ var p=el.value; setOpts(el,items,true); el.value = items.includes(p) ? p : 'All'; });
+    [s1Vendor,s2Vendor].forEach(function(el){ var p=el.value; setOpts(el,vendors,true); el.value = vendors.includes(p) ? p : 'All'; });
+
+    function setNumericOpts(sel, values){
+      var prev = Array.from(sel.selectedOptions).map(function(o){ return o.value; }); // 이전 선택 값 저장
+      sel.innerHTML = ['All'].concat(values.map(function(n){ return String(n); }))
+        .map(function(v){ return '<option>'+v+'</option>'; }).join('');
+      // 이전 선택 값 복원
+      var options = Array.from(sel.options);
+      var restored = false;
+      if (prev.length > 0 && prev[0] !== 'All') {
+        options.forEach(function(opt){
+          if (prev.includes(opt.value)) {
+             opt.selected = true;
+             restored = true;
+          } else {
+             opt.selected = false;
+          }
+        });
+      }
+      if (!restored) { // 복원 실패 시 'All' 선택
+         options.forEach(function(o){ o.selected = (o.value === 'All'); });
+      }
+    }
+    var qtys = uniqVals(base.map(function(r){ return toNum(get(r,CANON.QTY)); })).filter(function(v){ return !isNaN(v); }).sort(function(a,b){ return a-b; });
+    var tags = uniqVals(base.map(function(r){ return toNum(get(r,CANON.TAG)); })).filter(function(v){ return !isNaN(v); }).sort(function(a,b){ return a-b; });
+    [s1QtySel,s2QtySel].forEach(function(el){ setNumericOpts(el,qtys); });
+    [s1TagSel,s2TagSel].forEach(function(el){ setNumericOpts(el,tags); });
+
+    attachSeasonListeners();
+  }
+
+  function updateSeasonPanelOptions(panel){
+    var seasonSel=(panel===1?s1Season:s2Season);
+    var catSel   =(panel===1?s1Cat   :s2Cat   );
+    var itemSel  =(panel===1?s1Item  :s2Item  );
+    var domainSel=(panel===1?s1Domain:s2Domain);
+    var fitSel   =(panel===1?s1Fit   :s2Fit   );
+    var vendorSel=(panel===1?s1Vendor:s2Vendor);
+    var qtySel   =(panel===1?s1QtySel:s2QtySel);
+    var tagSel   =(panel===1?s1TagSel:s2TagSel);
+
+    if(!seasonSel) return;
+    function uniq(arr){ var s=new Set(); arr.forEach(function(v){ if(v!==null && v!==undefined && v!=='') s.add(v); }); return Array.from(s); }
+    function setAndPreserve(sel, values, includeAll){
+      if(!sel) return;
+      var prev=sel.value;
+      var opts=includeAll? ['All'].concat(values) : values.slice();
+      sel.innerHTML=opts.map(function(v){return '<option>'+v+'</option>';}).join('');
+      sel.value = (opts.indexOf(prev)>-1)? prev : (includeAll?'All':(opts[0]||'All'));
+    }
+    function setNumericOptsPanel(sel, values){
+       var prev = Array.from(sel.selectedOptions).map(function(o){ return o.value; }); // 이전 선택 값 저장
+       var opts = ['All'].concat(values.map(String));
+       sel.innerHTML = opts.map(function(v){return '<option>'+v+'</option>';}).join('');
+       var options = Array.from(sel.options);
+       var restored = false;
+        if (prev.length > 0 && prev[0] !== 'All') {
+          options.forEach(function(opt){
+            if (prev.includes(opt.value)) {
+               opt.selected = true;
+               restored = true;
+            } else {
+               opt.selected = false;
+            }
+          });
+        }
+       if (!restored) { // 복원 실패 시 'All' 선택
+           options.forEach(function(o){ o.selected = (o.value === 'All'); });
+       }
+    }
+
+    var baseAll = seasonBaseRows(); // 글로벌 필터 적용된 데이터
+    var base = baseAll.filter(function(r){ // 선택된 시즌만 필터링
+      return seasonSel.value==='All' || get(r, CANON.SEASON)===seasonSel.value;
+    });
+
+    setAndPreserve(catSel, uniq(base.map(function(r){return get(r, CANON.CATEGORY);})).sort(), true);
+
+    var baseForItem = base.filter(function(r){
+      if(catSel.value!=='All' && get(r,CANON.CATEGORY)!==catSel.value) return false;
+      return true;
+    });
+    setAndPreserve(itemSel, uniq(baseForItem.map(function(r){return get(r, CANON.ITEM);})).sort(), true);
+
+    var baseForDomain = base.filter(function(r){
+      if(catSel.value!=='All'  && get(r,CANON.CATEGORY)!==catSel.value) return false;
+      if(itemSel.value!=='All' && get(r,CANON.ITEM)!==itemSel.value)     return false;
+      return true;
+    });
+    setAndPreserve(domainSel, uniq(baseForDomain.map(function(r){return get(r, CANON.DOMAIN);})).sort(), true);
+
+    var baseForFit = base.filter(function(r){
+      if(catSel.value!=='All'    && get(r,CANON.CATEGORY)!==catSel.value) return false;
+      if(itemSel.value!=='All'   && get(r,CANON.ITEM)!==itemSel.value)     return false;
+      if(domainSel.value!=='All' && get(r,CANON.DOMAIN)!==domainSel.value) return false;
+      return true;
+    });
+    setAndPreserve(fitSel, uniq(baseForFit.map(function(r){return get(r, CANON.FIT);})).sort(), true);
+
+    var baseForVendor = base.filter(function(r){
+      if(catSel.value!=='All'    && get(r,CANON.CATEGORY)!==catSel.value) return false;
+      if(itemSel.value!=='All'   && get(r,CANON.ITEM)!==itemSel.value)     return false;
+      if(domainSel.value!=='All' && get(r,CANON.DOMAIN)!==domainSel.value) return false;
+      if(fitSel.value!=='All'    && get(r,CANON.FIT)!==fitSel.value)       return false;
+      return true;
+    });
+    setAndPreserve(vendorSel, uniq(baseForVendor.map(function(r){return get(r, CANON.VENDOR);})).sort(), true);
+
+    var qtyVals = uniq(baseForVendor.map(function(r){return toNum(get(r, CANON.QTY));}))
+                  .filter(function(v){return !isNaN(v);})
+                  .sort(function(a,b){return a-b;});
+    var tagVals = uniq(baseForVendor.map(function(r){return toNum(get(r, CANON.TAG));}))
+                  .filter(function(v){return !isNaN(v);})
+                  .sort(function(a,b){return a-b;});
+    setNumericOptsPanel(qtySel, qtyVals);
+    setNumericOptsPanel(tagSel, tagVals);
+  }
+
+  function getSelSet(sel){ if(!sel) return null; var selected = Array.from(sel.selectedOptions).map(function(o){ return o.value; }); if(selected.length===0 || selected.indexOf('All')>-1) return null; return new Set(selected.map(String)); }
+
+  function filterSeasonRows(panel){
+    var seasonSel=(panel===1?s1Season:s2Season);
+    var catSel   =(panel===1?s1Cat   :s2Cat   );
+    var domainSel=(panel===1?s1Domain:s2Domain);
+    var fitSel   =(panel===1?s1Fit   :s2Fit   );
+    var itemSel  =(panel===1?s1Item  :s2Item  );
+    var vendorSel=(panel===1?s1Vendor:s2Vendor);
+    var qtyMinEl=(panel===1?s1QtyMin:s2QtyMin);
+    var qtyMaxEl=(panel===1?s1QtyMax:s2QtyMax);
+    var tagMinEl=(panel===1?s1TagMin:s2TagMin);
+    var tagMaxEl=(panel===1?s1TagMax:s2TagMax);
+    var qtySet = getSelSet(panel===1? s1QtySel : s2QtySel);
+    var tagSet = getSelSet(panel===1? s1TagSel : s2TagSel);
+    var qtyMin=qtyMinEl && qtyMinEl.value!==''? Number(qtyMinEl.value): null;
+    var qtyMax=qtyMaxEl && qtyMaxEl.value!==''? Number(qtyMaxEl.value): null;
+    var tagMin=tagMinEl && tagMinEl.value!==''? Number(tagMinEl.value): null;
+    var tagMax=tagMaxEl && tagMaxEl.value!==''? Number(tagMaxEl.value): null;
+
+    return seasonBaseRows().filter(function(r){
+      if(seasonSel && seasonSel.value && seasonSel.value!=='All' && get(r,CANON.SEASON)!==seasonSel.value) return false;
+      if(catSel   && catSel.value!=='All'    && get(r,CANON.CATEGORY)!==catSel.value) return false;
+      if(domainSel&& domainSel.value!=='All' && get(r,CANON.DOMAIN)!==domainSel.value) return false;
+      if(fitSel   && fitSel.value!=='All'    && get(r,CANON.FIT)!==fitSel.value) return false;
+      if(itemSel  && itemSel.value!=='All'   && get(r,CANON.ITEM)!==itemSel.value) return false;
+      if(vendorSel&& vendorSel.value!=='All' && get(r,CANON.VENDOR)!==vendorSel.value) return false;
+      var q=toNum(get(r,CANON.QTY));
+      if(qtySet && !qtySet.has(String(q))) return false;
+      if(qtyMin!==null && (isNaN(q) || q<qtyMin)) return false;
+      if(qtyMax!==null && (isNaN(q) || q>qtyMax)) return false;
+      var t=toNum(get(r,CANON.TAG));
+      if(tagSet && !tagSet.has(String(t))) return false;
+      if(tagMin!==null && (isNaN(t) || t<tagMin)) return false;
+      if(tagMax!==null && (isNaN(t) || t>tagMax)) return false;
+      return true;
+    });
+  }
+
+  function wAvgMetric(rows, field){
+    var num=0, den=0;
+    rows.forEach(function(r){ var v=toNum(get(r, field)); var q=toNum(get(r, CANON.QTY)); if(!isNaN(v) && !isNaN(q)){ num+=v*q; den+=q; } });
+    return den>0? num/den: NaN;
+  }
+  function seasonAgg(rows){
+    return {
+      QTY_STYLE: rows.length,
+      QTY_TTL: sum(rows.map(function(r){ return get(r,CANON.QTY); })),
+      TAG: wAvgMetric(rows, CANON.TAG),
+      SHELL_PRICE: wAvgMetric(rows, CANON.SHELL_PRICE),
+      SHELL_CONS: wAvgMetric(rows, CANON.SHELL_CONS),
+      TTL_SHELL: wAvgMetric(rows, CANON.TTL_SHELL),
+      TTL_FABRIC: wAvgMetric(rows, CANON.TTL_FABRIC),
+      TTL_ARTWORK: wAvgMetric(rows, CANON.TTL_ARTWORK),
+      TTL_TRIM: wAvgMetric(rows, CANON.TTL_TRIM),
+      CM_USD: wAvgMetric(rows, CANON.CM),
+      COST_VAT: wAvgMetric(rows, CANON.COST),
+      MU: muWeighted(rows)
+    };
+  }
+  function fmtKRW2(v){ var n=toNum(v); return isNaN(n)?'-':'₩'+Math.round(n).toLocaleString('ko-KR'); }
+  function fmtUSD2(v){ var n=toNum(v); return isNaN(n)?'-':'$'+n.toFixed(2); }
+  function fmtInt(v){ var n=toNum(v); return isNaN(n)?'-':Math.round(n).toLocaleString('ko-KR'); }
+  function fmt2(v){ var n=toNum(v); return isNaN(n)?'-':Number(n).toFixed(2); }
+
+  function recomputeSeason(){
+    if(!s1Season){ return; }
+    updateSeasonPanelOptions(1);
+    updateSeasonPanelOptions(2);
+    var rows1=filterSeasonRows(1);
+    var rows2=filterSeasonRows(2);
+    var agg1=seasonAgg(rows1);
+    var agg2=seasonAgg(rows2);
+    srHead1.textContent=s1Season.value||'-';
+    srHead2.textContent=s2Season.value||'-';
+
+    var html='';
+    function row(label,key,group){
+      var v1=agg1[key]; var v2=agg2[key];
+      var d=( !isNaN(toNum(v1)) && !isNaN(toNum(v2)) )? toNum(v2)-toNum(v1): null;
+      var sign=''; var cls='same';
+      if(d!==null){ if(d>0){ sign='▲ '; cls='up'; } else if(d<0){ sign='▼ '; cls='down'; } else { sign='= '; cls='same'; } }
+      var val1,val2;
+      if(key==='QTY_STYLE' || key==='QTY_TTL'){
+        val1=fmtInt(v1); val2=fmtInt(v2);
+      } else if(key==='TAG' || key==='TTL_SHELL' || key==='TTL_FABRIC' || key==='TTL_ARTWORK' || key==='TTL_TRIM' || key==='COST_VAT'){
+        val1=fmtKRW2(v1); val2=fmtKRW2(v2);
+      } else if(key==='SHELL_PRICE' || key==='CM_USD'){
+        val1=fmtUSD2(v1); val2=fmtUSD2(v2);
+      } else if(key==='SHELL_CONS'){
+        val1=fmt2(v1); val2=fmt2(v2);
+      } else if(key==='MU'){
+        var n1=toNum(v1), n2=toNum(v2);
+        val1 = isNaN(n1)?'-':n1.toFixed(2);
+        val2 = isNaN(n2)?'-':n2.toFixed(2);
+      } else {
+        val1 = (v1==null||v1===undefined)?'-':String(v1);
+        val2 = (v2==null||v2===undefined)?'-':String(v2);
+      }
+      var yoy;
+      if (d===null || d===0) { yoy = '-'; }
+      else {
+        var n = Number(d), absn = Math.abs(n);
+        if (key==='TAG' || key==='TTL_SHELL' || key==='TTL_FABRIC' || key==='TTL_ARTWORK' || key==='TTL_TRIM' || key==='COST_VAT'){
+          yoy = '<span class="yoy '+cls+'">'+ sign + ((n<0?'-':'') + fmtKRW2(absn)) +'</span>';
+        } else if (key==='SHELL_PRICE' || key==='CM_USD'){
+          yoy = '<span class="yoy '+cls+'">'+ sign + ((n<0?'-':'') + fmtUSD2(absn)) +'</span>';
+        } else if (key==='QTY_STYLE' || key==='QTY_TTL'){
+          yoy = '<span class="yoy '+cls+'">'+ sign + fmtInt(absn) +'</span>';
+        } else {
+          yoy = '<span class="yoy '+cls+'">'+ sign + fmt2(n) +'</span>';
+        }
+      }
+      return '<tr'+(group?' class="'+group+'"':'')+'><td>'+label+'</td><td>'+val1+'</td><td>'+val2+'</td><td>'+yoy+'</td></tr>';
+    }
+
+    html += '<tr><td>SEASON</td><td>'+ (s1Season.value||'-') +'</td><td>'+ (s2Season.value||'-') +'</td><td>-</td></tr>';
+    html += '<tr><td>복종(ITEM)</td><td>'+ (s1Item.value||'All') +'</td><td>'+ (s2Item.value||'All') +'</td><td>-</td></tr>';
+    html += '<tr><td>FIT</td><td>'+ (s1Fit.value||'All') +'</td><td>'+ (s2Fit.value||'All') +'</td><td>-</td></tr>';
+    html += row('QTY_STYLE','QTY_STYLE','sr-row-QTY_STYLE');
+    html += row('QTY_TTL','QTY_TTL','sr-row-QTY_TTL');
+    html += row('TAG','TAG','sr-row-TAG');
+    html += row('SHELL PRICE($)','SHELL_PRICE');
+    html += row('SHELL CONS','SHELL_CONS');
+    html += row('TTL_SHELL','TTL_SHELL','sr-row-group1');
+    html += row('TTL_FABRIC','TTL_FABRIC','sr-row-TTL_FABRIC');
+    html += row('TTL_ARTWORK','TTL_ARTWORK','sr-row-TTL_ARTWORK');
+    html += row('TTL_TRIM','TTL_TRIM','sr-row-TTL_TRIM');
+    html += row('CM_USD','CM_USD','sr-row-CM_USD');
+    html += row('COST_VAT','COST_VAT','sr-row-COST_VAT');
+    html += row('MU','MU','sr-row-mu');
+    srBody.innerHTML=html;
+
+    var infoParts=[];
+    if(s1Cat && s1Cat.value && s1Cat.value!=='All') infoParts.push('CAT:'+s1Cat.value);
+    if(s1Domain && s1Domain.value && s1Domain.value!=='All') infoParts.push('DOM:'+s1Domain.value);
+    if(s1Fit && s1Fit.value && s1Fit.value!=='All') infoParts.push('FIT:'+s1Fit.value);
+    if(s1Item && s1Item.value && s1Item.value!=='All') infoParts.push('ITEM:'+s1Item.value);
+    if(s1Vendor && s1Vendor.value && s1Vendor.value!=='All') infoParts.push('VENDOR:'+s1Vendor.value);
+    if(s1QtyMin && s1QtyMin.value) infoParts.push('QTY≥'+s1QtyMin.value);
+    if(s1QtyMax && s1QtyMax.value) infoParts.push('QTY≤'+s1QtyMax.value);
+    if(s1TagMin && s1TagMin.value) infoParts.push('TAG≥'+s1TagMin.value);
+    if(s1TagMax && s1TagMax.value) infoParts.push('TAG≤'+s1TagMax.value);
+    var infoStr=infoParts.join(', ');
+    var muInfoEl=$('seasonMuInfo'); if(muInfoEl) muInfoEl.textContent=infoStr;
+    var cmInfoEl=$('seasonCmInfo'); if(cmInfoEl) cmInfoEl.textContent=infoStr;
+
+    renderSeasonChartsNew();
+  }
+
+  function renderSeasonChartsNew(){
+    if(chartSeasonMU2){ chartSeasonMU2.destroy(); chartSeasonMU2=null; }
+    if(chartSeasonCM2){ chartSeasonCM2.destroy(); chartSeasonCM2=null; }
+    var ctxMU=$('chartSeasonMU2').getContext('2d');
+    var ctxCM=$('chartSeasonCM2').getContext('2d');
+
+    var baseAll=seasonBaseRows(); // 글로벌 필터 적용 데이터 (시즌 제외)
+    var seasons=uniqVals(raw.map(function(r){ return get(r,CANON.SEASON); })).sort(); // 시즌 목록은 전체 Raw 데이터 기준
+
+    var baseFilter=baseAll.filter(function(r){ // 시즌1 패널의 필터 조건 적용
+      if(s1Cat.value!=='All' && get(r,CANON.CATEGORY)!==s1Cat.value) return false;
+      if(s1Domain.value!=='All' && get(r,CANON.DOMAIN)!==s1Domain.value) return false;
+      if(s1Fit.value!=='All' && get(r,CANON.FIT)!==s1Fit.value) return false;
+      if(s1Item.value!=='All' && get(r,CANON.ITEM)!==s1Item.value) return false;
+      if(s1Vendor.value!=='All' && get(r,CANON.VENDOR)!==s1Vendor.value) return false;
+      var q=toNum(get(r,CANON.QTY));
+      if(s1QtyMin && s1QtyMin.value!=='' && (isNaN(q) || q<Number(s1QtyMin.value))) return false;
+      if(s1QtyMax && s1QtyMax.value!=='' && (isNaN(q) || q>Number(s1QtyMax.value))) return false;
+      var t=toNum(get(r,CANON.TAG));
+      if(s1TagMin && s1TagMin.value!=='' && (isNaN(t) || t<Number(s1TagMin.value))) return false;
+      if(s1TagMax && s1TagMax.value!=='' && (isNaN(t) || t>Number(s1TagMax.value))) return false;
+      return true;
+    });
+
+    if(s1Item.value==='All'){
+      var items=uniqVals(baseFilter.map(function(r){ return get(r,CANON.ITEM); })).sort();
+      var dsMU=[]; var dsCM=[];
+      var colors=['rgba(102,153,255,0.45)','rgba(255,178,102,0.45)','rgba(178,255,102,0.45)','rgba(255,102,178,0.45)','rgba(102,255,204,0.45)','rgba(204,102,255,0.45)'];
+      seasons.forEach(function(season,idx){
+        var muData=items.map(function(item){ var rows=baseFilter.filter(function(r){ return get(r,CANON.SEASON)===season && get(r,CANON.ITEM)===item; }); return muWeighted(rows); });
+        var cmData=items.map(function(item){ var rows=baseFilter.filter(function(r){ return get(r,CANON.SEASON)===season && get(r,CANON.ITEM)===item; }); return wAvgMetric(rows, CANON.CM); });
+        var color=colors[idx % colors.length];
+        dsMU.push({ label:season, data:muData, backgroundColor:color, borderColor:'#93c5fd', borderWidth:1 });
+        dsCM.push({ label:season, data:cmData, backgroundColor:color, borderColor:'#93c5fd', borderWidth:1 });
+      });
+      chartSeasonMU2=new Chart(ctxMU,{ type:'bar', data:{ labels:items, datasets:dsMU }, options:{ plugins:{ legend:{ position:'bottom' }, datalabels:{ anchor:'end', align:'end', offset:2, formatter:function(v){ return (v==null||isNaN(v))? '' : Number(v).toFixed(2); }, font:{ size:10, weight:'600' } } }, scales:{ y:{ beginAtZero:true } } } });
+      chartSeasonCM2=new Chart(ctxCM,{ type:'bar', data:{ labels:items, datasets:dsCM }, options:{ plugins:{ legend:{ position:'bottom' }, datalabels:{ anchor:'end', align:'end', offset:2, formatter:function(v){ return (v==null||isNaN(v))? '' : Number(v).toFixed(2); }, font:{ size:10, weight:'600' } } }, scales:{ y:{ beginAtZero:true,max: 12,ticks: { stepSize: 1 } } } } });
+    } else {
+      var muData=seasons.map(function(season){ var rows=baseFilter.filter(function(r){ return get(r,CANON.SEASON)===season; }); return muWeighted(rows); });
+      var cmData=seasons.map(function(season){ var rows=baseFilter.filter(function(r){ return get(r,CANON.SEASON)===season; }); return wAvgMetric(rows, CANON.CM); });
+      chartSeasonMU2=new Chart(ctxMU,{ type:'bar', data:{ labels:seasons, datasets:[{ label:'MU', data:muData, backgroundColor:'rgba(102,153,255,0.45)', borderColor:'#93c5fd', borderWidth:1 }] }, options:{ plugins:{ legend:{ position:'bottom' }, datalabels:{ anchor:'end', align:'end', offset:2, formatter:function(v){ return (v==null||isNaN(v))? '' : Number(v).toFixed(2); }, font:{ size:10, weight:'600' } } }, scales:{ y:{ beginAtZero:true } } } });
+      chartSeasonCM2=new Chart(ctxCM,{ type:'bar', data:{ labels:seasons, datasets:[{ label:'CM($)', data:cmData, backgroundColor:'rgba(102,153,255,0.45)', borderColor:'#93c5fd', borderWidth:1 }] }, options:{ plugins:{ legend:{ position:'bottom' }, datalabels:{ anchor:'end', align:'end', offset:2, formatter:function(v){ return (v==null||isNaN(v))? '' : Number(v).toFixed(2); }, font:{ size:10, weight:'600' } } }, scales:{ y:{  beginAtZero:true,max: 12,ticks: { stepSize: 1 } } } } });
+    }
+  }
+
+  function attachSeasonListeners(){
+    var arr1=[s1Season,s1Cat,s1Domain,s1Fit,s1Item,s1Vendor,s1QtySel,s1QtyMin,s1QtyMax,s1TagSel,s1TagMin,s1TagMax];
+    var arr2=[s2Season,s2Cat,s2Domain,s2Fit,s2Item,s2Vendor,s2QtySel,s2QtyMin,s2QtyMax,s2TagSel,s2TagMin,s2TagMax];
+    // 패널 1 변경 시 패널 1 업데이트 후 recompute
+    arr1.forEach(function(el){ if(el){ var evt=(el.tagName==='INPUT')?'input':'change'; el.addEventListener(evt, function(){ updateSeasonPanelOptions(1); recomputeSeason(); }); } });
+    // 패널 2 변경 시 패널 2 업데이트 후 recompute
+    arr2.forEach(function(el){ if(el){ var evt=(el.tagName==='INPUT')?'input':'change'; el.addEventListener(evt, function(){ updateSeasonPanelOptions(2); recomputeSeason(); }); } });
+  }
+
+  /* ===== Compare ===== */
+  function populateCompare(panel){
+    var s=$('c'+panel+'Season'), c=$('c'+panel+'Cat'), i=$('c'+panel+'Item'), v=$('c'+panel+'Vendor'), list=$('c'+panel+'Style'), q=$('c'+panel+'Search');
+    function setOpts(sel, arr){ sel.innerHTML=arr.map(function(x){return '<option>'+x+'</option>'}).join('') }
+    function uniq(arr){ return Array.from(new Set(arr.filter(Boolean))) }
+    function step(){
+      var rows=raw.slice();
+      if(s.value) rows=rows.filter(function(r){return get(r,CANON.SEASON)===s.value});
+      if(c.value) rows=rows.filter(function(r){return get(r,CANON.CATEGORY)===c.value});
+      if(i.value) rows=rows.filter(function(r){return get(r,CANON.ITEM)===i.value});
+      if(v.value) rows=rows.filter(function(r){return get(r,CANON.VENDOR)===v.value});
+      var styles=rows.map(function(r){return get(r,CANON.STYLE_NO)+' — '+(get(r,CANON.STYLE_DESCRIPTION)||'')});
+      var term=(q.value||'').toLowerCase(); if(term) styles=styles.filter(function(t){return t.toLowerCase().indexOf(term)>-1});
+      list.innerHTML=styles.map(function(s){return '<option>'+s+'</option>'}).join('');
+    }
+    setOpts(s, uniq(raw.map(function(r){return get(r,CANON.SEASON)}))); s.value = s.value || (fSeason.value!=='All'?fSeason.value: ((s.options && s.options.length)? s.options[0].value : '') );
+    setOpts(c, uniq(raw.filter(function(r){return !s.value||get(r,CANON.SEASON)===s.value}).map(function(r){return get(r,CANON.CATEGORY)}))); c.value='';
+    setOpts(i, uniq(raw.filter(function(r){return (!s.value||get(r,CANON.SEASON)===s.value) && (!c.value||get(r,CANON.CATEGORY)===c.value)}).map(function(r){return get(r,CANON.ITEM)}))); i.value='';
+    setOpts(v, uniq(raw.filter(function(r){return (!s.value||get(r,CANON.SEASON)===s.value) && (!c.value||get(r,CANON.CATEGORY)===c.value) && (!i.value||get(r,CANON.ITEM)===i.value)}).map(function(r){return get(r,CANON.VENDOR)}))); v.value='';
+    q.value=''; step();
+    s.onchange=function(){ setOpts(c, uniq(raw.filter(function(r){return get(r,CANON.SEASON)===s.value}).map(function(r){return get(r,CANON.CATEGORY)}))); c.value=''; setOpts(i,[]); setOpts(v,[]); q.value=''; step() };
+    c.onchange=function(){ setOpts(i, uniq(raw.filter(function(r){return get(r,CANON.SEASON)===s.value && get(r,CANON.CATEGORY)===c.value}).map(function(r){return get(r,CANON.ITEM)}))); i.value=''; setOpts(v,[]); q.value=''; step() };
+    i.onchange=function(){ setOpts(v, uniq(raw.filter(function(r){return get(r,CANON.SEASON)===s.value && get(r,CANON.CATEGORY)===c.value && get(r,CANON.ITEM)===i.value}).map(function(r){return get(r,CANON.VENDOR)}))); v.value=''; q.value=''; step() };
+    v.onchange=step; q.oninput=step;
+  }
+
+  function findRowByStyle(optText){ if(!optText) return null; var styleNo=String(optText).split(' — ')[0]; return raw.find(function(r){return String(get(r,CANON.STYLE_NO))===styleNo}) || null }
+
+  function makeRow(label, value, keyClass){ return '<div class="cmp-row '+(keyClass||'')+'"><span>'+label+'</span><span class="num">'+fmtSmartNum(value)+'</span></div>'; }
+  
+  function makeDeltaOnlyRow(a, b, goodHigh, keyClass){
+    var an=toNum(a), bn=toNum(b);
+    var delta=(isNaN(an)||isNaN(bn))?null:(bn-an);
+    var cls='same', sign='—';
+    var deltaText = '—';
+    if(delta!==null){
+      var good = goodHigh? delta>0 : delta<0;
+      cls= delta===0?'same':(good?'up':'down');
+      sign = delta>0?'▲':'▼';
+      if(delta===0) sign='=';
+      deltaText = sign+' '+fmtSmartNum(Math.abs(delta));
+    }
+    return '<div class="cmp-row '+(keyClass||'')+'" style="padding-left:0; padding-right:0; justify-content: center;"><span class="delta '+cls+'">'+deltaText+'</span></div>';
+  }
+
+  function renderCompare(){
+    var a=findRowByStyle($('c1Style').value), b=findRowByStyle($('c2Style').value);
+    var wrap=$('cmpResult');
+    if(!a && !b){ wrap.innerHTML='<div class="muted">좌측에서 스타일을 선택해 주세요.</div>'; return }
+    function val(r,k){return r? get(r,k):''}
+
+    var left  = '<div class="cmp-card narrow"><div class="cmp-title">선택 1: '+(a?((get(a,'SEASON')||'')+' '+get(a,CANON.STYLE_NO)+' '+(get(a,CANON.STYLE_DESCRIPTION)||'')):'-')+'</div>'
+              + '<div class="cmp-row"><span>VENDOR</span><span class="num">'+ (a? shortVendor(get(a,CANON.VENDOR)):'-') +'</span></div>'
+              + makeRow('TAG',val(a,CANON.TAG),'key-tag')
+              + makeRow('QTY',val(a,CANON.QTY))
+              + makeRow('COST',val(a,CANON.COST),'key-cost')
+              + makeRow('MU',val(a,CANON.MU),'key-mu')
+              + makeRow('SHELL_PRICE($)',val(a,CANON.SHELL_PRICE))
+              + makeRow('SHELL_CONS',val(a,CANON.SHELL_CONS))
+              + makeRow('TTL_FABRIC',val(a,CANON.TTL_FABRIC))
+              + makeRow('TTL_ARTWORK',val(a,CANON.TTL_ARTWORK))
+              + makeRow('TTL_TRIM',val(a,CANON.TTL_TRIM))
+              + makeRow('CM($)',val(a,CANON.CM))
+              + makeRow('TTL_INSULATION($)',val(a,CANON.TTL_INS))
+              + makeRow('INS_CONS',val(a,CANON.INS_CONS))
+              + makeRow('INS_PRICE($)',val(a,CANON.INS_PRICE))
+              + '</div>';
+
+    var mid   = '<div class="cmp-card narrow"><div class="cmp-title" style="text-align:center;">증감</div>'
+              + '<div class="cmp-row" style="padding-left:0; padding-right:0; justify-content: center;"><span class="delta same">—</span></div>' // VENDOR 행 높이 맞춤
+              + makeDeltaOnlyRow(val(a,CANON.TAG),val(b,CANON.TAG),true,'key-tag')
+              + makeDeltaOnlyRow(val(a,CANON.QTY),val(b,CANON.QTY),true)
+              + makeDeltaOnlyRow(val(a,CANON.COST),val(b,CANON.COST),false,'key-cost')
+              + makeDeltaOnlyRow(val(a,CANON.MU),val(b,CANON.MU),true,'key-mu')
+              + makeDeltaOnlyRow(val(a,CANON.SHELL_PRICE),val(b,CANON.SHELL_PRICE),false)
+              + makeDeltaOnlyRow(val(a,CANON.SHELL_CONS),val(b,CANON.SHELL_CONS),false)
+              + makeDeltaOnlyRow(val(a,CANON.TTL_FABRIC),val(b,CANON.TTL_FABRIC),false)
+              + makeDeltaOnlyRow(val(a,CANON.TTL_ARTWORK),val(b,CANON.TTL_ARTWORK),false)
+              + makeDeltaOnlyRow(val(a,CANON.TTL_TRIM),val(b,CANON.TTL_TRIM),false)
+              + makeDeltaOnlyRow(val(a,CANON.CM),val(b,CANON.CM),false)
+              + makeDeltaOnlyRow(val(a,CANON.TTL_INS),val(b,CANON.TTL_INS),false)
+              + makeDeltaOnlyRow(val(a,CANON.INS_CONS),val(b,CANON.INS_CONS),false)
+              + makeDeltaOnlyRow(val(a,CANON.INS_PRICE),val(b,CANON.INS_PRICE),false)
+              + '</div>';
+
+    var right = '<div class="cmp-card narrow"><div class="cmp-title">선택 2: '+(b?((get(b,'SEASON')||'')+' '+get(b,CANON.STYLE_NO)+' '+(get(b,CANON.STYLE_DESCRIPTION)||'')):'-')+'</div>'
+              + '<div class="cmp-row"><span>VENDOR</span><span class="num">'+ (b? shortVendor(get(b,CANON.VENDOR)):'-') +'</span></div>'
+              + makeRow('TAG',val(b,CANON.TAG),'key-tag')
+              + makeRow('QTY',val(b,CANON.QTY))
+              + makeRow('COST',val(b,CANON.COST),'key-cost')
+              + makeRow('MU',val(b,CANON.MU),'key-mu')
+              + makeRow('SHELL_PRICE($)',val(b,CANON.SHELL_PRICE))
+              + makeRow('SHELL_CONS',val(b,CANON.SHELL_CONS))
+              + makeRow('TTL_FABRIC',val(b,CANON.TTL_FABRIC))
+              + makeRow('TTL_ARTWORK',val(b,CANON.TTL_ARTWORK))
+              + makeRow('TTL_TRIM',val(b,CANON.TTL_TRIM))
+              + makeRow('CM($)',val(b,CANON.CM))
+              + makeRow('TTL_INSULATION($)',val(b,CANON.TTL_INS))
+              + makeRow('INS_CONS',val(b,CANON.INS_CONS))
+              + makeRow('INS_PRICE($)',val(b,CANON.INS_PRICE))
+              + '</div>';
+
+    wrap.innerHTML = left + mid + right;
+  }
+
+  /* ===== 파이프라인 ===== */
+  function recomputeAll(){ applyFilters(); refreshFilterOptions(); updateKPIs(); renderMU(); renderCM(); renderCost(); renderHistory(); renderDetail(); }
+  function setMU(target){ MU_TARGET=Math.max(4.0,Math.min(8.0,Number(target)||5.5)); $('muSlider').value=MU_TARGET.toFixed(1); $('muInput').value=MU_TARGET.toFixed(1); $('muTargetLabel').textContent=MU_TARGET.toFixed(1); $('muTargetLabel2').textContent=MU_TARGET.toFixed(1); recomputeAll(); }
 
   function loadCSV(file){
-    const fr=new FileReader();
-    fr.onload=()=>{
-      const text = fr.result.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
-      const rows = text.split('\n').filter(Boolean);
-      const headers = rows[0].split(',').map(h=>h.trim());
-      buildMap(headers);
-      raw = rows.slice(1).map(line=>{
-        const cells=[]; let cur='', q=false;
-        for(let i=0;i<line.length;i++){
-          const c=line[i];
-          if(c==='\"'){ if(q && line[i+1]==='\"'){ cur+='\"'; i++; } else { q=!q; } }
-          else if(c===',' && !q){ cells.push(cur); cur=''; }
-          else { cur+=c; }
-        }
-        cells.push(cur);
-        const obj={}; headers.forEach((h,idx)=> obj[h]=cells[idx]??'' ); return obj;
-      });
-      populateFilters(raw);
-      recomputeAll();
+    var fr=new FileReader();
+    fr.onload=function(){
+      try{
+        var text=fr.result.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+        var rows=text.split('\n').filter(function(x){return x!==''});
+        var headers=rows[0].split(',').map(function(h){return h.trim()});
+        buildMap(headers);
+        raw=rows.slice(1).map(function(line){
+          var cells=[],cur='',q=false;
+          for(var i=0;i<line.length;i++){
+            var c=line[i];
+            if(c==='"'){
+              if(q && line[i+1]==='"'){cur+='"';i++;} else {q=!q;}
+            } else if(c===',' && !q){ cells.push(cur); cur=''; }
+            else { cur+=c; }
+          }
+          cells.push(cur);
+          var obj={}; headers.forEach(function(h,idx){ obj[h]=cells[idx]!==undefined?cells[idx]:'' });
+          return obj;
+        });
+
+        populateFilters(raw);
+        populateCompare(1);
+        populateCompare(2);
+        populateSeasonFiltersNew();
+        recomputeSeason();
+        recomputeAll();
+      }catch(err){
+        console.error('[CSV load error]', err);
+        alert('CSV 로딩 중 오류가 발생했습니다:\n' + (err && err.message ? err.message : String(err)));
+      }
     };
     fr.readAsText(file,'utf-8');
   }
 
-  // Events
-  fileInput.addEventListener('change', (e)=>{ const f=e.target.files[0]; if(f) loadCSV(f); });
-  [fItem,fVendor,fFit,fDomain].forEach(el=>el.addEventListener('change', recomputeAll));
-  document.getElementById('fStyle').addEventListener('input', recomputeAll);
-  document.getElementById('btnReset').addEventListener('click', ()=>{ fItem.value='All'; fVendor.value='All'; fFit.value='All'; fDomain.value='All'; document.getElementById('fStyle').value=''; recomputeAll(); });
-  muSlider.addEventListener('input', ()=> setMU(muSlider.value));
-  muInput.addEventListener('change', ()=> setMU(muInput.value));
-  chips.forEach(c=> c.addEventListener('click', ()=> setMU(c.dataset.mu)));
+  /* ===== 이벤트 ===== */
+  fileInput.addEventListener('change', function(e){ var f=e.target.files[0]; if(f) loadCSV(f); });
+  [fSeason,fCategory,fItem,fVendor,fFit,fDomain].forEach(function(el){
+    el.addEventListener('change', function(){
+      recomputeAll();
+      if(currentView==='season'){ 
+        populateSeasonFiltersNew();
+        recomputeSeason(); 
+      }
+    });
+  });
+  $('btnReset').addEventListener('click', function(){
+    fSeason.value=fCategory.value=fItem.value=fVendor.value=fFit.value=fDomain.value='All';
+    fStyle.value = '';
+    histFilterState = {};
+    detailFilterState = {};
+    recomputeAll();
+    if(currentView==='season'){ 
+      populateSeasonFiltersNew();
+      recomputeSeason(); 
+    }
+  });
+  $('muSlider').addEventListener('input', function(){ setMU(this.value) });
+  $('muInput').addEventListener('change', function(){ setMU(this.value) });
 
-  // init
+  Array.from(document.querySelectorAll('.page-nav .tab-btn')).forEach(function(btn){
+    btn.addEventListener('click', function(){
+      // (v5.3) active state handled after view switch
+      var v=btn.getAttribute('data-view'); currentView=v||'main';
+      document.body.setAttribute('data-view', currentView);
+      // keep nav active state in sync (both left and top nav if present)
+      Array.from(document.querySelectorAll('.page-nav .tab-btn')).forEach(function(b){b.classList.toggle('active', b.getAttribute('data-view')===currentView)});
+      $('view-main').style.display=(currentView==='main')?'block':'none';
+      $('view-season').style.display=(currentView==='season')?'block':'none';
+      $('view-compare').style.display=(currentView==='compare')?'block':'none';
+      if(currentView==='season'){ 
+        populateSeasonFiltersNew(); // 시즌 탭 진입 시 항상 필터 옵션 재구성
+        recomputeSeason(); 
+      }
+    });
+  });
+  Array.from(document.querySelectorAll('button[data-mu]')).forEach(function(b){
+    b.addEventListener('click', function(){ setMU(b.getAttribute('data-mu')) })
+  });
+
+  ['1','2'].forEach(function(p){
+    ['c'+p+'Season','c'+p+'Cat','c'+p+'Item','c'+p+'Vendor','c'+p+'Style','c'+p+'Search'].forEach(function(id){
+      var el=$(id); 
+      if(el && el.tagName === 'SELECT') { el.addEventListener('change', renderCompare); }
+      if(el && el.tagName === 'INPUT') { el.addEventListener('input', renderCompare); } // 검색창은 input 이벤트
+    });
+  });
+
   setMU(5.5);
 })();
+
+
+  // ==== v5.3 requested: main view scroll only below KPI + view layout flags ====
+  (function(){
+    function applyViewLayoutVars(){
+      var h=document.querySelector('header');
+      if(h){ document.documentElement.style.setProperty('--headerH', (h.getBoundingClientRect().height||0)+'px'); }
+      var k=document.querySelector('#view-main .kpis');
+      if(k){ document.documentElement.style.setProperty('--kpiH', (k.getBoundingClientRect().height||0)+'px'); }
+    }
+    function ensureMainScrollArea(){
+      var vm=document.getElementById('view-main');
+      if(!vm) return;
+      if(vm.querySelector('.main-scroll-area')) return;
+      var kpis=vm.querySelector('.kpis');
+      if(!kpis) return;
+      var wrap=document.createElement('div');
+      wrap.className='main-scroll-area';
+      // move everything after KPIs into scroll wrapper
+      var node=kpis.nextSibling;
+      while(node){
+        var next=node.nextSibling;
+        wrap.appendChild(node);
+        node=next;
+      }
+      vm.appendChild(wrap);
+    }
+    // set initial view flag
+    if(!document.body.getAttribute('data-view')) document.body.setAttribute('data-view','main');
+    ensureMainScrollArea();
+    applyViewLayoutVars();
+    window.addEventListener('resize', applyViewLayoutVars);
+    // update vars when switching view (after click handler runs)
+    document.addEventListener('click', function(e){
+      var t=e.target;
+      if(t && t.classList && t.classList.contains('tab-btn') && t.getAttribute('data-view')){
+        setTimeout(applyViewLayoutVars, 0);
+      }
+    });
+  })();
+
 </script>
 </body>
 </html>

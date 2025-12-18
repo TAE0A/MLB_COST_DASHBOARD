@@ -157,7 +157,7 @@
   .sr-table tbody td{padding:6px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center}
   .sr-table tbody tr:nth-child(even){background:#fbfdff}
   .sr-table .yoy{font-size:12px;margin-left:6px}
-  .sr-table .up{color:var(--good)}
+  .sr-table .up{color:#0b1f3b}
   .sr-table .down{color:var(--red)}
   .sr-table .same{color:var(--muted)}
   .sr-row-g1 td{background:#fff7e6}
@@ -223,7 +223,7 @@
   th[data-col]:hover { background: #f3f4f6; }
 
   /* 증감 비교 색상 강조 */
-  .delta.up { color: var(--good); }
+  .delta.up { color: #0b1f3b; }
   .delta.down { color: var(--red); }
   .delta.same { color: var(--muted); }
 
@@ -1292,23 +1292,11 @@ function renderMU(){
   /* ===== 시즌 비교 (신규) ===== */
   
   function seasonBaseRows(){
-    return raw.filter(function(r){
-      if(fCategory.value!=='All' && get(r,CANON.CATEGORY)!==fCategory.value) return false;
-      if(fItem.value!=='All' && get(r,CANON.ITEM)!==fItem.value) return false;
-      if(fVendor.value!=='All' && get(r,CANON.VENDOR)!==fVendor.value) return false;
-      if(fFit.value!=='All' && get(r,CANON.FIT)!==fFit.value) return false;
-      if(fDomain.value!=='All' && get(r,CANON.DOMAIN)!==fDomain.value) return false;
-      if(fStyle && fStyle.value){
-        var q=fStyle.value.toLowerCase();
-        var a=String(get(r,CANON.STYLE_NO)||'').toLowerCase();
-        var b=String(get(r,CANON.STYLE_DESCRIPTION)||'').toLowerCase();
-        if(a.indexOf(q)===-1 && b.indexOf(q)===-1) return false;
-      }
-      return true;
-    });
+    // Decoupled from main-page left filters: season compare uses its own Season1/Season2 filters only.
+    return raw.slice();
   }
 
-  function setOpts(sel, values, includeAll){
+function setOpts(sel, values, includeAll){
     var opts = includeAll? ['All'].concat(values) : values.slice();
     sel.innerHTML = opts.map(function(v){ return '<option>'+v+'</option>'; }).join('');
   }
@@ -1697,9 +1685,8 @@ function renderMU(){
     var cls='same', sign='—';
     var deltaText = '—';
     if(delta!==null){
-      var good = goodHigh? delta>0 : delta<0;
-      cls= delta===0?'same':(good?'up':'down');
-      sign = delta>0?'▲':'▼';
+      cls = delta===0 ? 'same' : (delta>0 ? 'up' : 'down');
+      sign = delta>0 ? '▲' : '▼';
       if(delta===0) sign='=';
       deltaText = sign+' '+fmtSmartNum(Math.abs(delta));
     }
